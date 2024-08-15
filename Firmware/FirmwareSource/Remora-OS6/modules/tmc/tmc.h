@@ -6,13 +6,14 @@
 #include <string>
 
 #include "module.h"
-#include "/TMCStepper/TMCStepper.h"
+#include "TMCStepper/TMCStepper.h"
 
 #include "extern.h"
 
 
 void createTMC2208(void);
 void createTMC2209(void);
+void createTMC5160(void);
 
 class TMC : public Module
 {
@@ -73,5 +74,29 @@ class TMC2209 : public TMC
     void configure(void);
 };
 
+class TMC5160 : public TMC
+{
+  protected:
+
+    std::string csPin; 
+    std::string spiBus; 
+    uint16_t    mA;
+    uint16_t    microsteps;
+    bool        stealth;
+    uint8_t     addr;
+    uint16_t    stall;
+
+    TMC5160Stepper* driver;
+
+  public:
+
+    // SW Serial pin, Rsense, addr, mA, microsteps, stealh, hybrid, stall
+    // TMC2209(std::string, float, uint8_t, uint16_t, uint16_t, bool, uint16_t);
+    TMC5160(std::string csPin, std::string spiBus, float Rsense, uint16_t mA, uint16_t microsteps, bool stealth);
+    ~TMC5160();
+
+    void update(void);           // Module default interface
+    void configure(void);
+};
 
 #endif

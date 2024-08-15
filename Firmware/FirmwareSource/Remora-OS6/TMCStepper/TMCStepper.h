@@ -2,11 +2,12 @@
 #include <cstdint>
 #include "../SoftwareSerial/SoftwareSerial.h"
 #include "../pin/pin.h"
+#include <TMCSPI.h>
 
 //#include "TMC2130_bitfields.h"
 //#include "TMC2160_bitfields.h"
 //#include "TMC5130_bitfields.h"
-//#include "TMC5160_bitfields.h"
+#include "TMC5160_bitfields.h"
 #include "TMC2208_bitfields.h"
 #include "TMC2209_bitfields.h"
 //#include "TMC2660_bitfields.h"
@@ -14,6 +15,7 @@
 
 #define INIT_REGISTER(REG) REG##_t REG##_register = REG##_t
 #define INIT2208_REGISTER(REG) TMC2208_n::REG##_t REG##_register = TMC2208_n::REG##_t
+#define INIT5160_REGISTER(REG) TMC5160_n::REG##_t REG##_register = TMC5160_n::REG##_t
 #define SET_ALIAS(TYPE, DRIVER, NEW, ARG, OLD) TYPE (DRIVER::*NEW)(ARG) = &DRIVER::OLD
 
 #define TMCSTEPPER_VERSION 0x000701 // v0.7.1
@@ -350,4 +352,97 @@ class TMC2209Stepper : public TMC2208Stepper {
         INIT_REGISTER(TCOOLTHRS){.sr=0};
         TMC2209_n::SGTHRS_t SGTHRS_register{.sr=0};
         TMC2209_n::COOLCONF_t COOLCONF_register{{.sr=0}};
+};
+
+
+// Custom registers used by I2C <> SPI bridge
+typedef enum {
+    TMC_I2CReg_MON_STATE = 0x7D,
+    TMC_I2CReg_ENABLE = 0x7E
+} TMC_i2c_registers_t;
+
+
+class TMC5160Stepper : public TMCStepper {
+    private:
+
+        uint16_t bytesWritten = 0;
+        float Rsense = 0.05;
+        bool CRCerror = false;
+        float holdMultiplier = 0.5;
+    public:
+
+        //TMC5160Stepper(std::string SWRXpin, std::string SWTXpin, float RS, uint8_t addr);
+        TMC5160Stepper(string cs_pin, string spi_bus, 
+                       uint8_t r_sense, uint8_t current, uint16_t microsteps, bool stealthchop);
+
+
+        TMC5160_n::TMC5160_t *driver = nullptr;
+        TMCSPI *spi = nullptr;
+
+        void defaults (TMC5160_n::TMC5160_t *driver);
+        void push();
+        void begin();
+
+        void _set_rms_current();
+        void defaults ();
+        bool isEnabled();
+        bool enn();
+        bool dir();
+        bool toff();
+        bool step();
+        uint8_t version();
+        bool Init();
+        uint_fast16_t cs2rms (uint8_t CS);
+        uint16_t GetCurrent();
+        void SetCurrent (uint16_t mA, uint8_t hold_pct);
+        float GetTPWMTHRS (float steps_mm);
+        void SetTPWMTHRS (float mm_sec, float steps_mm);
+        void SetTHIGH (float mm_sec, float steps_mm);
+        void SetTCOOLTHRS (float mm_sec, float steps_mm);
+        void setCoolStep(uint8_t semin, uint8_t semax, uint8_t seup, uint8_t sedn, bool seimin);
+        void setStallGuard(uint8_t sg_threshold, uint32_t sg_filter_time);
+        bool isStallGuardActive();
+        uint32_t getStallGuardResult();
+        void setThresholdSpeed(uint32_t tpwmthrs, uint32_t tcoolthrs, uint32_t thigh);
+        void setPowerStageParameters(uint8_t tbl, uint8_t toff, uint8_t hstrt, uint8_t hend);
+
+        bool MicrostepsIsValid (uint16_t usteps);
+        bool tmc_microsteps_validate (uint16_t microsteps);
+        void SetMicrosteps (uint16_t msteps);
+        uint32_t getMicrostepcounter();
+        void SetConstantOffTimeChopper (uint8_t constant_off_time,uint8_t blank_time, uint8_t fast_decay_time,int8_t sine_wave_offset, bool use_current_comparator);
+        TMC5160_n::DRV_STATUS_t getDriverStatus();
+        uint32_t getTStep();
+        float getCurrentSpeed();
+
+
+        void write(uint8_t, uint32_t);
+        uint32_t read(uint8_t);
+        void vsense(bool);
+        bool vsense(void);
+        uint32_t DRV_STATUS();
+        void hend(uint8_t);
+        uint8_t hend();
+        void hstrt(uint8_t);
+        uint8_t hstrt();
+        void mres(uint8_t);
+        uint8_t mres();
+        void tbl(uint8_t);
+        uint8_t tbl();
+
+    protected:
+
+        uint8_t tmc_microsteps_to_mres(uint16_t microsteps);
+        uint16_t tmc_mres_to_microsteps(uint8_t mres);
+        void setStealthChop(bool enable, uint8_t freq, uint8_t autoscale, uint8_t autograd);
+        void WriteRegister (TMC5160_n::TMC_spi_datagram_t *reg);
+        TMC5160_n::TMC_payload_t ReadRegister (TMC5160_n::TMC_spi_datagram_t *reg);
+        uint32_t tmc_calc_tstep (float mm_sec, float steps_mm);
+        float tmc_calc_tstep_inv (uint32_t tstep, float steps_mm);
+        //TMC5160_n::TMC_spi_datagram_t * GetRegPtr (TMC5160_n::tmc5160_regaddr_t reg);
+        void tmcSPIWrite (TMC5160_n::TMC_spi_datagram_t *datagram);
+        uint32_t tmcSPIRead (TMC5160_n::TMC_spi_datagram_t *datagram);
+        int available();
+
+        uint8_t calcCRC(uint8_t datagram[], uint8_t len);
 };

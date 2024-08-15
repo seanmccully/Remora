@@ -189,7 +189,7 @@ void readJsonConfig()
     printf("Mounting the filesystem... ");
     fflush(stdout);
  
-    int err = fileSystem.mount(&blockDevice);
+    int err = fileSystem.mount((BlockDevice*)&blockDevice);
     printf("%s\n", (err ? "Fail :(" : "OK"));
     if (err) {
         printf("No filesystem found... ");
@@ -230,15 +230,12 @@ void setup()
 
     // TODO: we can probably just deinit the blockdevice for all targets....?
 
-    #if defined TARGET_STM32F4
+    #if defined TARGET_STM32F4 | defined TARGET_SKR_MINI_E3 | TARGET_MANTA8
     // deinitialise the SDIO device to avoid DMA issues with the SPI DMA Slave on the STM32F4
-    blockDevice.deinit();
-    #endif
-
-    #if defined TARGET_SKR_MINI_E3 | TARGET_MANTA8
     // remove the SD device as we are sharing the SPI with the comms module
     blockDevice.deinit();
     #endif
+
 
     // initialise the Remora comms 
     comms.init();
@@ -385,7 +382,7 @@ void loadModules()
 
             if (!strcmp(type,"MCP4451")) // digipot
             {
-				createMCP4451();
+                createMCP4451();
             }
             else if (!strcmp(type,"Motor Power"))
             {
@@ -398,6 +395,10 @@ void loadModules()
             else if (!strcmp(type,"TMC2209"))
             {
                 createTMC2209();
+            }
+            else if (!strcmp(type,"TMC5160"))
+            {
+                createTMC5160();
             }
         }
     }
