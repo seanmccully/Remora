@@ -1,129 +1,116 @@
 /********************************************************************
 * Description:  remora.c
-*               Modified version using WiringPi for hardware interface
-*               HAL component that provides SPI connection to external 
-*               STM32 running Remora PRU firmware.
+*               This file, 'remora.c', is a HAL component that
+*               provides an SPI connection to an external STM32 running Remora PRU firmware.
+*               
+*               Modified for Raspberry Pi 5 to use Linux kernel SPI interface
+*               instead of bcm2835 direct hardware access.
 *
-* Author: Original by Scott Alford, WiringPi modifications added
+* Author: Scott Alford
 * License: GPL Version 2
+*
+* Copyright (c) 2021-2024 All rights reserved.
 ********************************************************************/
 
-#include <stdio.h>
-#include <string.h>
+#include "rtapi.h"          /* RTAPI realtime OS API */
+#include "rtapi_app.h"      /* RTAPI realtime module decls */
+#include "hal.h"            /* HAL public API decls */
+
 #include <math.h>
 #include <fcntl.h>
-#include <sys/mman.h>
+#include <sys/ioctl.h>
+#include <linux/spi/spidev.h>
 #include <unistd.h>
-#include <wiringPi.h>
-#include <wiringPiSPI.h>
-
-#include "rtapi.h"
-#include "rtapi_app.h"
-#include "hal.h"
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
 
 #include "remora.h"
+#include "remora_log.h"
 
 #define MODNAME "remora"
 #define PREFIX "remora"
-#define author "Scott Alford AKA scotta";
-#define description "Driver for Remora STM32 control board";
-#define license "GPL v2";
-MODULE_AUTHOR(author);
-MODULE_DESCRIPTION(description);
-MODULE_LICENSE(license);
 
-// SPI settings
-#define SPI_CHANNEL 0
-#define SPI_SPEED 32000000  // 32MHz max for RPi SPI
-                            //
+MODULE_AUTHOR("Scott Alford");
+MODULE_DESCRIPTION("Driver for Remora STM32 control board - Modified for RPi 5");
+MODULE_LICENSE("GPL v2");
 
-/***********************************************************************
-*                STRUCTURES AND GLOBAL VARIABLES                       *
-************************************************************************/
 
 typedef struct {
-	hal_bit_t		*SPIenable;
-	hal_bit_t		*SPIreset;
-	hal_bit_t		*PRUreset;
-	bool			SPIresetOld;
-	hal_bit_t		*SPIstatus;
-	hal_bit_t 		*stepperEnable[JOINTS];
-	int				pos_mode[JOINTS];
-	hal_float_t 	*pos_cmd[JOINTS];			// pin: position command (position units)
-	hal_float_t 	*vel_cmd[JOINTS];			// pin: velocity command (position units/sec)
-	hal_float_t 	*pos_fb[JOINTS];			// pin: position feedback (position units)
-	hal_s32_t		*count[JOINTS];				// pin: psition feedback (raw counts)
-	hal_float_t 	pos_scale[JOINTS];			// param: steps per position unit
-	float 			freq[JOINTS];				// param: frequency command sent to PRU
-	hal_float_t 	*freq_cmd[JOINTS];			// pin: frequency command monitoring, available in LinuxCNC
-	hal_float_t 	maxvel[JOINTS];				// param: max velocity, (pos units/sec)
-	hal_float_t 	maxaccel[JOINTS];			// param: max accel (pos units/sec^2)
-	hal_float_t		*pgain[JOINTS];
-	hal_float_t		*ff1gain[JOINTS];
-	hal_float_t		*deadband[JOINTS];
-	float 			old_pos_cmd[JOINTS];		// previous position command (counts)
-	float 			old_pos_cmd_raw[JOINTS];		// previous position command (counts)
-	float 			old_scale[JOINTS];			// stored scale value
-	float 			scale_recip[JOINTS];		// reciprocal value used for scaling
-	float			prev_cmd[JOINTS];
-	float			cmd_d[JOINTS];					// command derivative
-	hal_float_t 	*setPoint[VARIABLES];
-	hal_float_t 	*processVariable[VARIABLES];
-	hal_bit_t   	*outputs[DIGITAL_OUTPUTS];
-	hal_bit_t   	*inputs[DIGITAL_INPUTS];
+    hal_bit_t        *SPIenable;
+    hal_bit_t        *SPIreset;
+    hal_bit_t        *PRUreset;
+    bool             SPIresetOld;
+    hal_bit_t        *SPIstatus;
+    hal_bit_t        *stepperEnable[JOINTS];
+    int              pos_mode[JOINTS];
+    hal_float_t      *pos_cmd[JOINTS];     /* pin: position command */
+    hal_float_t      *vel_cmd[JOINTS];     /* pin: velocity command */
+    hal_float_t      *pos_fb[JOINTS];      /* pin: position feedback */
+    hal_s32_t        *count[JOINTS];       /* pin: position feedback (raw counts) */
+    hal_float_t      pos_scale[JOINTS];    /* param: steps per position unit */
+    float            freq[JOINTS];         /* param: frequency command sent to PRU */
+    hal_float_t      *freq_cmd[JOINTS];    /* pin: frequency command monitoring */
+    hal_float_t      maxvel[JOINTS];       /* param: max velocity */
+    hal_float_t      maxaccel[JOINTS];     /* param: max accel */
+    hal_float_t      *pgain[JOINTS];
+    hal_float_t      *ff1gain[JOINTS];
+    hal_float_t      *deadband[JOINTS];
+    float            old_pos_cmd[JOINTS];  /* previous position command */
+    float            old_pos_cmd_raw[JOINTS]; /* previous position command */
+    float            old_scale[JOINTS];    /* stored scale value */
+    float            scale_recip[JOINTS];  /* reciprocal value used for scaling */
+    float            prev_cmd[JOINTS];
+    float            cmd_d[JOINTS];        /* command derivative */
+    hal_float_t      *setPoint[VARIABLES];
+    hal_float_t      *processVariable[VARIABLES];
+    hal_bit_t        *outputs[DIGITAL_OUTPUTS];
+    hal_bit_t        *inputs[DIGITAL_INPUTS];
 } data_t;
 
 static data_t *data;
 
-
+/* Packed structs for SPI transfer */
 #pragma pack(push, 1)
 
-typedef union
-{
-  // this allow structured access to the outgoing SPI data without having to move it
-  // this is the same structure as the PRU rxData structure
-  struct
-  {
-    uint8_t txBuffer[SPIBUFSIZE];
-  };
-  struct
-  {
-	int32_t header;
-    int32_t jointFreqCmd[JOINTS];
-    float 	setPoint[VARIABLES];
-	uint8_t jointEnable;
-	uint16_t outputs;
-    uint8_t spare0;
-  };
+typedef union {
+    struct {
+        uint8_t txBuffer[SPIBUFSIZE];
+    };
+    struct {
+        int32_t header;
+        int32_t jointFreqCmd[JOINTS];
+        float   setPoint[VARIABLES];
+        uint8_t jointEnable;
+        uint16_t outputs;
+        uint8_t spare0;
+    };
 } txData_t;
 
-
-typedef union
-{
-  // this allow structured access to the incoming SPI data without having to move it
-  // this is the same structure as the PRU txData structure
-  struct
-  {
-    uint8_t rxBuffer[SPIBUFSIZE];
-  };
-  struct
-  {
-    int32_t header;
-    int32_t jointFeedback[JOINTS];
-    float 	processVariable[VARIABLES];
-    uint16_t inputs;
-  };
+typedef union {
+    struct {
+        uint8_t rxBuffer[SPIBUFSIZE];
+    };
+    struct {
+        int32_t header;
+        int32_t jointFeedback[JOINTS];
+        float   processVariable[VARIABLES];
+        uint16_t inputs;
+    };
 } rxData_t;
 
 #pragma pack(pop)
 
-#define ctrl_type_desc "control type (pos or vel)"
-#define pru_chip_desc "PRU chip type; LPC or STM"
-#define spi_desc "SPI clock divider"
-#define pru_desc "PRU base thread frequency"
-
 static txData_t txData;
 static rxData_t rxData;
+
+
+// SPI settings
+static const char *spi_device = "/dev/spidev0.0";  /* Default SPI device */
+static int spi_fd = -1;
+static uint32_t spi_speed = 32000000;  // Default 32MHz
+static uint8_t spi_mode = SPI_MODE_0;
+static uint8_t spi_bits = 8;
 
 
 /* other globals */
@@ -143,263 +130,356 @@ static int 			reset_gpio_pin = 25;				// RPI GPIO pin number used to force watch
 
 typedef enum CONTROL { POSITION, VELOCITY, INVALID } CONTROL;
 char *ctrl_type[JOINTS] = { "p" };
-
-RTAPI_MP_ARRAY_STRING(ctrl_type,JOINTS,ctrl_type_desc);
+RTAPI_MP_ARRAY_STRING(ctrl_type,JOINTS,"control type (pos or vel)");
 
 enum CHIP { LPC, STM } chip;
 char *chip_type = { "STM" }; //default to STM
-RTAPI_MP_STRING(chip_type, pru_chip_desc);
+RTAPI_MP_STRING(chip_type, "PRU chip type; LPC or STM");
 
 int SPI_clk_div = 32;
-RTAPI_MP_INT(SPI_clk_div, spi_desc);
+RTAPI_MP_INT(SPI_clk_div, "SPI clock divider");
 
 int PRU_base_freq = -1;
-RTAPI_MP_INT(PRU_base_freq, pru_desc);
+RTAPI_MP_INT(PRU_base_freq, "PRU base thread frequency");
 
 
-/***********************************************************************
-*                  LOCAL FUNCTION DECLARATIONS                         *
-************************************************************************/
-
+/* Function prototypes */
+static int spi_init(void);
+static void spi_cleanup(void);
+static int spi_transfer(uint8_t *tx, uint8_t *rx, int len);
 static void update_freq(void *arg, long period);
-static void spi_write();
-static void spi_read();
-static void spi_transfer();
+static void spi_write(void);
+static void spi_read(void);
+static int hal_err_handle(int _ret);
+static int parse_stepgen(void);
+static int validate_chip_type(void);
+static int remora_hal_init(void);
+static int remora_hal_pins(void);
+static int remora_hal_joints(void);
+static int remora_hal_joint_pins(void);
+static int hal_error(void);
+static int hal_export_functions(void);
 static CONTROL parse_ctrl_type(const char *ctrl);
+const char * concat(const char* pre,const char *post);
 
-
-
-static int rt_wiringpi_init(void) {
-    // Initialize WiringPi
-    if (wiringPiSetupGpio() == -1) {
-        rtapi_print_msg(RTAPI_MSG_ERR, "Failed to initialize WiringPi\n");
-        return -1;
-    }
-
-    // Setup SPI
-    if (wiringPiSPISetup(SPI_CHANNEL, SPI_SPEED) == -1) {
-        rtapi_print_msg(RTAPI_MSG_ERR, "Failed to initialize SPI\n");
-        return -1;
-    }
-
-    // Configure GPIO for PRU reset pin
-    pinMode(reset_gpio_pin, OUTPUT);
-    digitalWrite(reset_gpio_pin, LOW);
-
-    return 1;
-}
-
-void spi_transfer() {
-    if (chip == LPC) {
-        // For LPC, transfer one byte at a time
-        for (int i = 0; i < SPIBUFSIZE; i++) {
-            unsigned char buf[1];
-            buf[0] = txData.txBuffer[i];
-            wiringPiSPIDataRW(SPI_CHANNEL, buf, 1);
-            rxData.rxBuffer[i] = buf[0];
-        }
-    }
-    else if (chip == STM) {
-        // For STM, transfer entire buffer at once
-        wiringPiSPIDataRW(SPI_CHANNEL, (unsigned char *)txData.txBuffer, SPIBUFSIZE);
-        memcpy(rxData.rxBuffer, txData.txBuffer, SPIBUFSIZE);
-    }
-}
-
-void spi_read() {
-    int i;
-    double curr_pos;
-
-    // Data header
-    txData.header = PRU_READ;
-    
-    // Update PRU reset output using WiringPi
-    digitalWrite(reset_gpio_pin, *(data->PRUreset) ? HIGH : LOW);
-    
-    if (*(data->SPIenable)) {
-        if ((*(data->SPIreset) && !(data->SPIresetOld)) || *(data->SPIstatus)) {
-            // Reset rising edge detected or PRU running
-            spi_transfer();
-
-            switch (rxData.header) {
-                case PRU_DATA:
-                    // Process valid PRU data
-                    *(data->SPIstatus) = 1;
-
-                    for (i = 0; i < JOINTS; i++) {
-                        // Convert PRU DDS accumulator (32 bit) to 64 bits
-                        accum_diff = rxData.jointFeedback[i] - old_count[i];
-                        old_count[i] = rxData.jointFeedback[i];
-                        accum[i] += accum_diff;
-
-                        *(data->count[i]) = accum[i] >> STEPBIT;
-
-                        data->scale_recip[i] = (1.0 / STEP_MASK) / data->pos_scale[i];
-                        curr_pos = (double)(accum[i]-STEP_OFFSET) * (1.0 / STEP_MASK);
-                        *(data->pos_fb[i]) = (float)((curr_pos+0.5) / data->pos_scale[i]);
-                    }
-
-                    // Process feedback variables
-                    for (i = 0; i < VARIABLES; i++) {
-                        *(data->processVariable[i]) = rxData.processVariable[i]; 
-                    }
-
-                    // Process digital inputs
-                    for (i = 0; i < DIGITAL_INPUTS; i++) {
-                        *(data->inputs[i]) = (rxData.inputs & (1 << i)) ? 1 : 0;
-                    }
-                    break;
-                    
-                case PRU_ESTOP:
-                    *(data->SPIstatus) = 0;
-                    rtapi_print_msg(RTAPI_MSG_ERR, "An E-stop is active");
-                    break;
-
-                default:
-                    *(data->SPIstatus) = 0;
-                    rtapi_print("Bad SPI payload = %x\n", rxData.header);
-                    break;
-            }
-        }
-    }
-    else {
-        *(data->SPIstatus) = 0;
-    }
-    
-    data->SPIresetOld = *(data->SPIreset);
-}
-
-void spi_write() {
-    int i;
-
-    txData.header = PRU_WRITE;
-
-    // Set joint frequency commands
-    for (i = 0; i < JOINTS; i++) {
-        txData.jointFreqCmd[i] = data->freq[i];
-    }
-
-    // Set joint enable bits
-    txData.jointEnable = 0;
-    for (i = 0; i < JOINTS; i++) {
-        if (*(data->stepperEnable[i])) {
-            txData.jointEnable |= (1 << i);
-        }
-    }
-
-    // Set process variables
-    for (i = 0; i < VARIABLES; i++) {
-        txData.setPoint[i] = *(data->setPoint[i]);
-    }
-
-    // Set digital outputs
-    txData.outputs = 0;
-    for (i = 0; i < DIGITAL_OUTPUTS; i++) {
-        if (*(data->outputs[i])) {
-            txData.outputs |= (1 << i);
-        }
-    }
-
-    if (*(data->SPIstatus)) {
-        spi_transfer();
-    }
-}
 
 int rtapi_app_main(void) {
-    char name[HAL_NAME_LEN + 1];
-    int n, retval;
-
-    // Parse control types for each joint
-    for (n = 0; n < JOINTS; n++) {
-        if (parse_ctrl_type(ctrl_type[n]) == INVALID) {
-            rtapi_print_msg(RTAPI_MSG_ERR,
-                    "STEPGEN: ERROR: bad control type '%s' for axis %i (must be 'p' or 'v')\n",
-                    ctrl_type[n], n);
-            return -1;
-        }
+    int retval;
+    int n;
+    retval = parse_stepgen();
+    retval = validate_chip_type();
+    /* Initialize the SPI interface */
+    if (spi_init() < 0) {
+        log_error( "%s: ERROR: Failed to initialize SPI\n", modname);
+        return -1;
     }
 
+    /* Connect to the HAL */
+    retval = remora_hal_init();
+
+    /* Export pins and parameters */
+    retval = remora_hal_pins();
+    retval = remora_hal_joint_pins();
+    retval = remora_hal_joints();
+
+    /* ... Rest of pin/parameter exports ... */
+
+    /* Export functions */
+    retval = hal_export_functions();
+    hal_ready(comp_id);
+    return 0;
+
+}
+
+int parse_stepgen(void) {
+
+	// parse stepgen control type
+	for (int n = 0; n < JOINTS; n++) {
+        if(parse_ctrl_type(ctrl_type[n]) == INVALID) {
+          rtapi_print_msg(RTAPI_MSG_ERR,
+              "STEPGEN: ERROR: bad control type '%s' for axis %i (must be 'p' or 'v')\n",
+              ctrl_type[n], n);
+          return -1;
+        }
+    }
+}
+
+int validate_chip_type(void) {
     // Validate chip type
     if (!strcmp(chip_type, "LPC") || !strcmp(chip_type, "lpc")) {
-        rtapi_print_msg(RTAPI_MSG_INFO, "PRU: Chip type set to LPC\n");
+        log_info("PRU: Chip type set to LPC\n");
         chip = LPC;
     }
     else if (!strcmp(chip_type, "STM") || !strcmp(chip_type, "stm")) {
-        rtapi_print_msg(RTAPI_MSG_INFO, "PRU: Chip type set to STM\n");
+        log_info("PRU: Chip type set to STM\n");
         chip = STM;
     }
     else {
-        rtapi_print_msg(RTAPI_MSG_ERR, "ERROR: PRU chip type (must be 'LPC' or 'STM')\n");
+        log_error("ERROR: PRU chip type (must be 'LPC' or 'STM')\n");
         return -1;
     }
-
-    // Validate PRU base frequency
-    if (PRU_base_freq != -1) {
-        if (PRU_base_freq < 40000 || PRU_base_freq > 240000) {
-            rtapi_print_msg(RTAPI_MSG_ERR, "ERROR: PRU base frequency incorrect\n");
-            return -1;
-        }
-    }
-    else {
-        PRU_base_freq = PRU_BASEFREQ;
-    }
-
-    // Initialize HAL
-    comp_id = hal_init(modname);
-    if (comp_id < 0) {
-        rtapi_print_msg(RTAPI_MSG_ERR, "%s ERROR: hal_init() failed\n", modname);
-        return -1;
-    }
-
-    // Allocate HAL shared memory
-    data = hal_malloc(sizeof(data_t));
-    if (!data) {
-        rtapi_print_msg(RTAPI_MSG_ERR, "%s: ERROR: hal_malloc() failed\n", modname);
-        hal_exit(comp_id);
-        return -1;
-    }
-
-    // Initialize WiringPi and SPI
-    if (!rt_wiringpi_init()) {
-        rtapi_print_msg(RTAPI_MSG_ERR, "WiringPi initialization failed\n");
-        hal_exit(comp_id);
-        return -1;
-    }
-
-    // Export HAL pins and parameters
-    // ... [rest of pin/parameter export code remains the same]
-
-    // Export functions
-    rtapi_snprintf(name, sizeof(name), "%s.update-freq", prefix);
-    retval = hal_export_funct(name, update_freq, data, 1, 0, comp_id);
-    if (retval < 0) {
-        rtapi_print_msg(RTAPI_MSG_ERR, "%s: ERROR: update function export failed\n", modname);
-        hal_exit(comp_id);
-        return -1;
-    }
-
-    rtapi_snprintf(name, sizeof(name), "%s.write", prefix);
-    retval = hal_export_funct(name, spi_write, 0, 0, 0, comp_id);
-    if (retval < 0) {
-        rtapi_print_msg(RTAPI_MSG_ERR, "%s: ERROR: write function export failed\n", modname);
-        hal_exit(comp_id);
-        return -1;
-    }
-
-    rtapi_snprintf(name, sizeof(name), "%s.read", prefix);
-    retval = hal_export_funct(name, spi_read, data, 1, 0, comp_id);
-    if (retval < 0) {
-        rtapi_print_msg(RTAPI_MSG_ERR, "%s: ERROR: read function export failed\n", modname);
-        hal_exit(comp_id);
-        return -1;
-    }
-
-    rtapi_print_msg(RTAPI_MSG_INFO, "%s: installed driver\n", modname);
-    hal_ready(comp_id);
     return 0;
 }
 
-void update_freq(void *arg, long period)
+const char * concat(const char* pre,const char *post) {
+
+    int pre_l = strlen(pre);
+    int post_l = strlen(post);
+    char* _str = malloc(pre_l + post_l);
+    memcpy(_str,pre, pre_l);
+    memcpy(_str,post, post_l+1);
+    return _str;
+}
+int hal_export_functions(void) {
+
+    int retval = hal_export_funct("remora.update-freq", update_freq, data, 1, 0, comp_id);
+    if (retval < 0) {
+        log_error( "%s: ERROR: update function export failed\n", modname);
+        hal_exit(comp_id);
+        return -1;
+    }
+
+    //rtapi_snprintf(name, strlen(name), "%s.write", prefix);
+    retval = hal_export_funct("remora.write", spi_write, 0, 0, 0, comp_id);
+    if (retval < 0) {
+        log_error( "%s: ERROR: write function export failed\n", modname);
+        hal_exit(comp_id);
+        return -1;
+    }
+
+    //rtapi_snprintf(name, sizeof(name), "%s.read", prefix);
+    retval = hal_export_funct("remora.read", spi_read, data, 1, 0, comp_id);
+    if (retval < 0) {
+        log_error( "%s: ERROR: read function export failed\n", modname);
+        hal_exit(comp_id);
+        return -1;
+    }
+
+    log_info("%s: installed driver\n", modname);
+    return retval;
+}
+
+int remora_hal_init(void) {
+
+    comp_id = hal_init(modname);
+    if (comp_id < 0) {
+        log_error("%s ERROR: hal_init() failed\n", modname);
+        return -1;
+    }
+
+    data = hal_malloc(sizeof(data_t));
+    if (!data) {
+        log_error("%s: ERROR: hal_malloc() failed\n", modname);
+        hal_exit(comp_id);
+        return -1;
+    }
+    return 0;
+}
+
+int remora_hal_pins(void) {
+
+    // Export HAL pins and parameters
+    int retval = hal_pin_bit_newf(HAL_IN, &(data->SPIenable), comp_id, "%s.SPI-enable", prefix);
+    if (retval != 0) return retval;
+    
+    retval = hal_pin_bit_newf(HAL_IN, &(data->SPIreset), comp_id, "%s.SPI-reset", prefix);
+    if (retval != 0) return retval;
+
+    retval = hal_pin_bit_newf(HAL_OUT, &(data->SPIstatus), comp_id, "%s.SPI-status", prefix);
+    if (retval != 0) return retval;
+
+    return 0;
+    // Configure PRU reset pin
+    //gpioSetMode(reset_gpio_pin, PI_OUTPUT);
+    //retval = hal_pin_bit_newf(HAL_IN, &(data->PRUreset), comp_id, "%s.PRU-reset", prefix);
+    //if (retval != 0) return retval;
+    //return retval;
+}
+
+int remora_hal_joint_pins(void) {
+
+  int retval=0;
+	for (int n = 0; n < VARIABLES; n++) {
+	// export pins
+
+/*
+This is throwing errors from axis.py for some reason...
+
+		if (data->pos_mode[n]){
+			log_error("Creating pos_mode[%d] = %d\n", n, data->pos_mode[n]);
+			retval = hal_pin_float_newf(HAL_IN, &(data->pos_cmd[n]),
+					comp_id, "%s.joint.%01d.pos-cmd", prefix, n);
+			if (retval < 0) return hal_error();
+			*(data->pos_cmd[n]) = 0.0;
+		} else {
+			log_error("Creating vel_mode[%d] = %d\n", n, data->pos_mode[n]);
+			retval = hal_pin_float_newf(HAL_IN, &(data->vel_cmd[n]),
+					comp_id, "%s.joint.%01d.vel-cmd", prefix, n);
+			if (retval < 0) return hal_error();
+			*(data->vel_cmd[n]) = 0.0;			
+		}
+*/
+		retval = hal_pin_float_newf(HAL_IN, &(data->setPoint[n]),
+		        comp_id, "%s.SP.%01d", prefix, n);
+		hal_err_handle(retval);
+		*(data->setPoint[n]) = 0.0;
+
+		retval = hal_pin_float_newf(HAL_OUT, &(data->processVariable[n]),
+		        comp_id, "%s.PV.%01d", prefix, n);
+		hal_err_handle(retval);
+		*(data->processVariable[n]) = 0.0;
+	}
+
+	for (int n = 0; n < DIGITAL_OUTPUTS; n++) {
+		retval = hal_pin_bit_newf(HAL_IN, &(data->outputs[n]),
+				comp_id, "%s.output.%01d", prefix, n);
+		hal_err_handle(retval);
+		*(data->outputs[n])=0;
+	}
+
+	for (int n = 0; n < DIGITAL_INPUTS; n++) {
+		retval = hal_pin_bit_newf(HAL_OUT, &(data->inputs[n]),
+				comp_id, "%s.input.%01d", prefix, n);
+		hal_err_handle(retval);
+		*(data->inputs[n])=0;
+	}
+  return retval;
+}
+
+int remora_hal_joints(void) {
+
+    int retval = 0;
+    for (int n = 0; n < JOINTS; n++) {
+
+		    data->pos_mode[n] = (parse_ctrl_type(ctrl_type[n]) == POSITION);
+
+        retval = hal_pin_bit_newf(HAL_IN, &(data->stepperEnable[n]),
+            comp_id, "%s.joint.%01d.enable", prefix, n);
+        hal_err_handle(retval);
+
+        retval = hal_pin_float_newf(HAL_IN, &(data->pos_cmd[n]),
+            comp_id, "%s.joint.%01d.pos-cmd", prefix, n);
+        hal_err_handle(retval);
+        *(data->pos_cmd[n]) = 0.0;
+        
+        if (data->pos_mode[n] == 0){
+          retval = hal_pin_float_newf(HAL_IN, &(data->vel_cmd[n]),
+              comp_id, "%s.joint.%01d.vel-cmd", prefix, n);
+          hal_err_handle(retval);
+          *(data->vel_cmd[n]) = 0.0;			
+        }
+
+        retval = hal_pin_float_newf(HAL_OUT, &(data->freq_cmd[n]),
+                comp_id, "%s.joint.%01d.freq-cmd", prefix, n);
+        hal_err_handle(retval);
+        *(data->freq_cmd[n]) = 0.0;
+
+        retval = hal_pin_float_newf(HAL_OUT, &(data->pos_fb[n]),
+                comp_id, "%s.joint.%01d.pos-fb", prefix, n);
+        hal_err_handle(retval);
+        *(data->pos_fb[n]) = 0.0;
+        
+        retval = hal_param_float_newf(HAL_RW, &(data->pos_scale[n]),
+                comp_id, "%s.joint.%01d.scale", prefix, n);
+        hal_err_handle(retval);
+        data->pos_scale[n] = 1.0;
+
+        retval = hal_pin_s32_newf(HAL_OUT, &(data->count[n]),
+                comp_id, "%s.joint.%01d.counts", prefix, n);
+        hal_err_handle(retval);
+        *(data->count[n]) = 0;
+        
+        retval = hal_pin_float_newf(HAL_IN, &(data->pgain[n]),
+            comp_id, "%s.joint.%01d.pgain", prefix, n);
+        hal_err_handle(retval);
+        *(data->pgain[n]) = 0.0;
+        
+        retval = hal_pin_float_newf(HAL_IN, &(data->ff1gain[n]),
+            comp_id, "%s.joint.%01d.ff1gain", prefix, n);
+        hal_err_handle(retval);
+        *(data->ff1gain[n]) = 0.0;
+        
+        retval = hal_pin_float_newf(HAL_IN, &(data->deadband[n]),
+            comp_id, "%s.joint.%01d.deadband", prefix, n);
+        hal_err_handle(retval);
+        *(data->deadband[n]) = 0.0;
+        
+        retval = hal_param_float_newf(HAL_RW, &(data->maxaccel[n]),
+                comp_id, "%s.joint.%01d.maxaccel", prefix, n);
+        hal_err_handle(retval);
+        data->maxaccel[n] = 1.0;
+	}
+    return retval;
+}
+
+
+void rtapi_app_exit(void) {
+    spi_cleanup();
+    hal_exit(comp_id);
+}
+
+static int spi_init(void) {
+    int ret;
+    uint8_t mode = SPI_MODE_0;
+    uint8_t bits = 8;
+    uint32_t speed = 15000000; // 15MHz - adjust as needed
+
+    spi_fd = open(spi_device, O_RDWR);
+    if (spi_fd < 0) {
+        log_error( "%s: ERROR: Can't open device %s: %s\n",
+                       modname, spi_device, strerror(errno));
+        return -1;
+    }
+
+    /* SPI mode */
+    ret = ioctl(spi_fd, SPI_IOC_WR_MODE, &mode);
+    if (ret < 0) {
+        log_error( "%s: ERROR: Can't set SPI mode: %s\n",
+                       modname, strerror(errno));
+        return -1;
+    }
+
+    /* Bits per word */
+    ret = ioctl(spi_fd, SPI_IOC_WR_BITS_PER_WORD, &bits);
+    if (ret < 0) {
+        log_error( "%s: ERROR: Can't set bits per word: %s\n",
+                       modname, strerror(errno));
+        return -1;
+    }
+
+    /* Max speed Hz */
+    ret = ioctl(spi_fd, SPI_IOC_WR_MAX_SPEED_HZ, &speed);
+    if (ret < 0) {
+        log_error( "%s: ERROR: Can't set max speed Hz: %s\n",
+                       modname, strerror(errno));
+        return -1;
+    }
+
+    return 0;
+}
+
+static void spi_cleanup(void) {
+    if (spi_fd >= 0) {
+        close(spi_fd);
+        spi_fd = -1;
+    }
+}
+
+static int spi_transfer(uint8_t *tx, uint8_t *rx, int len) {
+    struct spi_ioc_transfer tr = {
+        .tx_buf = (unsigned long)tx,
+        .rx_buf = (unsigned long)rx,
+        .len = len,
+        .delay_usecs = 0,
+        .speed_hz = 15000000,
+        .bits_per_word = 8,
+    };
+
+    return ioctl(spi_fd, SPI_IOC_MESSAGE(1), &tr);
+}
+
+/* Update frequency function - same as original */
+static void update_freq(void *arg, long period)
 {
 	int i;
 	data_t *data = (data_t *)arg;
@@ -607,17 +687,120 @@ void update_freq(void *arg, long period)
 
 }
 
+/* SPI write function using Linux SPI interface */
+static void spi_write() {
+    int i=0;
+    /* Data header */
+    txData.header = PRU_WRITE;
+
+    /* Joint frequency commands */
+    for (i = 0; i < JOINTS; i++) {
+        txData.jointFreqCmd[i] = data->freq[i];
+    }
+
+    /* Joint enable bits */
+    for (i = 0; i < JOINTS; i++) {
+        if (*(data->stepperEnable[i]) == 1) {
+            txData.jointEnable |= (1 << i);
+        } else {
+            txData.jointEnable &= ~(1 << i);
+        }
+    }
+
+    /* Set points */
+    for (i = 0; i < VARIABLES; i++) {
+        txData.setPoint[i] = *(data->setPoint[i]);
+    }
+
+    /* Outputs */
+    for (i = 0; i < DIGITAL_OUTPUTS; i++) {
+        if (*(data->outputs[i]) == 1) {
+            txData.outputs |= (1 << i);
+        } else {
+            txData.outputs &= ~(1 << i);
+        }
+    }
+
+    if (*(data->SPIstatus)) {
+        spi_transfer(txData.txBuffer, rxData.rxBuffer, SPIBUFSIZE);
+    }
+}
+
+/* SPI read function using Linux SPI interface */
+static void spi_read() {
+    int i;
+    double curr_pos;
+
+    /* Data header */
+    txData.header = PRU_READ;
+
+    if (*(data->SPIenable)) {
+        if ((*(data->SPIreset) && !(data->SPIresetOld)) || *(data->SPIstatus)) {
+            /* Transfer data */
+            spi_transfer(txData.txBuffer, rxData.rxBuffer, SPIBUFSIZE);
+
+            switch (rxData.header) {
+                case PRU_DATA:
+                    *(data->SPIstatus) = 1;
+
+                    /* Process received data */
+                    for (i = 0; i < JOINTS; i++) {
+                        /* Position calculations */
+                        accum_diff = rxData.jointFeedback[i] - old_count[i];
+                        old_count[i] = rxData.jointFeedback[i];
+                        accum[i] += accum_diff;
+
+                        *(data->count[i]) = accum[i] >> STEPBIT;
+
+                        data->scale_recip[i] = (1.0 / STEP_MASK) / data->pos_scale[i];
+                        curr_pos = (double)(accum[i]-STEP_OFFSET) * (1.0 / STEP_MASK);
+                        *(data->pos_fb[i]) = (float)((curr_pos+0.5) / data->pos_scale[i]);
+                    }
+
+                    /* Process variables */
+                    for (i = 0; i < VARIABLES; i++) {
+                        *(data->processVariable[i]) = rxData.processVariable[i];
+                    }
+
+                    /* Process inputs */
+                    for (i = 0; i < DIGITAL_INPUTS; i++) {
+                        *(data->inputs[i]) = (rxData.inputs & (1 << i)) ? 1 : 0;
+                    }
+                    break;
+
+                case PRU_ESTOP:
+                    *(data->SPIstatus) = 0;
+                    log_error( "An E-stop is active\n");
+                    break;
+
+                default:
+                    *(data->SPIstatus) = 0;
+                    log_warning("Bad SPI payload = %x\n", rxData.header);
+                    break;
+            }
+        }
+    } else {
+        *(data->SPIstatus) = 0;
+    }
+
+    data->SPIresetOld = *(data->SPIreset);
+}
+
+int hal_error(void) {
+		hal_exit(comp_id);
+		return -1;
+}
+
+static int hal_err_handle(int _ret) { 
+    if (_ret < 0) { 
+        return hal_error();
+    }
+    return 0; 
+}
 
 static CONTROL parse_ctrl_type(const char *ctrl)
 {
     if(!ctrl || !*ctrl || *ctrl == 'p' || *ctrl == 'P') return POSITION;
     if(*ctrl == 'v' || *ctrl == 'V') return VELOCITY;
     return INVALID;
-}
-
-
-void rtapi_app_exit(void) {
-    // Close SPI
-    close(wiringPiSPIGetFd(SPI_CHANNEL));
-    hal_exit(comp_id);
 }
