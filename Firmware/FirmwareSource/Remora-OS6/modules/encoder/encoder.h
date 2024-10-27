@@ -3,25 +3,24 @@
 
 #include <cstdint>
 #include <iostream>
-#include <string>
 
 #include "configuration.h"
 #include "modules/module.h"
 #include "drivers/pin/pin.h"
 
-#include "extern.h"
+#include "remora.h"
 
-void createEncoder(void);
+unique_ptr<Module> createEncoder(const JsonObject& config);
 
 class Encoder : public Module
 {
 
 	private:
 
-		std::string ChA;			// physical pin connection
-        std::string ChB;			// physical pin connection
+		const char* ChA;			// physical pin connection
+        const char* ChB;			// physical pin connection
         
-        std::string Index;			// physical pin connection
+        const char* Index;			// physical pin connection
         bool hasIndex;
         volatile uint16_t *ptrData; 	// pointer to the data source
 		int bitNumber;				// location in the data source
@@ -42,8 +41,8 @@ class Encoder : public Module
         Pin* pinB;      // channel B
         Pin* pinI;      // index       
 
-		Encoder(volatile float&, std::string, std::string, int);
-        Encoder(volatile float&, volatile uint16_t&, int, std::string, std::string, std::string, int);
+		Encoder(volatile float&, const char*, const char*, int);
+        Encoder(volatile float&, volatile uint16_t&, int, const char*, const char*, const char*, int);
 
 		virtual void update(void);	// Module default interface
 };

@@ -11,7 +11,7 @@ class HardwarePWM : public Module
 {
 	private:
 
-		std::string pin;			        // PWM output pin
+		const char* pin;			        // PWM output pin
 		int pwmMax;					        // maximum PWM output
 		int pwmSP;					        // PWM setpoint as a percentage of maxPwm
 
@@ -29,8 +29,8 @@ class HardwarePWM : public Module
 
 	public:
 
-		HardwarePWM(volatile float&, int, std::string);			        
-        HardwarePWM(volatile float&, volatile float&, int, std::string);	
+		HardwarePWM(volatile float&, int, const char*);			        
+    HardwarePWM(volatile float&, volatile float&, int, const char*);	
 
 		virtual void update(void);          // Module default interface
 		virtual void slowUpdate(void);      // Module default interface

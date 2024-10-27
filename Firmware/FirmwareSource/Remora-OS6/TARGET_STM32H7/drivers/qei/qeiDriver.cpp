@@ -42,8 +42,6 @@ uint32_t QEIdriver::get()
 
 void QEIdriver::init()
 {
-    printf("  Initialising hardware QEI module\n");
-
     this->htim.Instance = TIM1;
     this->htim.Init.Prescaler = 0;
     this->htim.Init.CounterMode = TIM_COUNTERMODE_UP;
@@ -65,7 +63,7 @@ void QEIdriver::init()
 
     if (HAL_TIM_Encoder_Init(&this->htim, &this->sConfig) != HAL_OK)
     {
-        printf("Couldn't Init Encoder\r\n");
+        MBED_ERROR1(MBED_MAKE_ERROR(MBED_MODULE_APPLICATION, MBED_ERROR_CODE_FAILED_OPERATION),"Failed Encoder Start!",0x3422);
     }
 
     this->sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
@@ -74,7 +72,7 @@ void QEIdriver::init()
 
     if (HAL_TIM_Encoder_Start(&this->htim, TIM_CHANNEL_2)!=HAL_OK)
     {
-        printf("Couldn't Start Encoder\r\n");
+        MBED_ERROR1(MBED_MAKE_ERROR(MBED_MODULE_APPLICATION, MBED_ERROR_CODE_FAILED_OPERATION),"Failed Encoder Start!",0x3421);
     }
 }
 

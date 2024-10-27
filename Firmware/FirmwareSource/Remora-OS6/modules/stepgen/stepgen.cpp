@@ -5,24 +5,22 @@
                 MODULE CONFIGURATION AND CREATION FROM JSON     
 ************************************************************************/
 
-void createStepgen()
-{
-    const char* comment = module["Comment"];
-    printf("%s\n",comment);
+unique_ptr<Module> createStepgen(const JsonObject& config) {
+    const char* comment = config["Comment"];
 
-    int joint = module["Joint Number"];
-    const char* enable = module["Enable Pin"];
-    const char* step = module["Step Pin"];
-    const char* dir = module["Direction Pin"];
+    int joint = config["Joint Number"];
+    const char* enable = config["Enable Pin"];
+    const char* step = config["Step Pin"];
+    const char* dir = config["Direction Pin"];
+    const int32_t freq = config["Frequency"];
 
     // configure pointers to data source and feedback location
-    ptrJointFreqCmd[joint] = &rxData.jointFreqCmd[joint];
-    ptrJointFeedback[joint] = &txData.jointFeedback[joint];
-    ptrJointEnable = &rxData.jointEnable;
+    //ptrJointFreqCmd[joint] = &rxData.jointFreqCmd[joint];
+    //ptrJointFeedback[joint] = &txData.jointFeedback[joint];
+    //ptrJointEnable = &rxData.jointEnable;
 
     // create the step generator, register it in the thread
-    Module* stepgen = new Stepgen(base_freq, joint, enable, step, dir, STEPBIT, *ptrJointFreqCmd[joint], *ptrJointFeedback[joint], *ptrJointEnable);
-    baseThread->registerModule(stepgen);
+    return make_unique<Stepgen>(freq, joint, enable, step, dir, STEPBIT, rxData.jointFreqCmd[joint], txData.jointFeedback[joint], rxData.jointEnable);
 }
 
 
@@ -30,7 +28,7 @@ void createStepgen()
                 METHOD DEFINITIONS
 ************************************************************************/
 
-Stepgen::Stepgen(int32_t threadFreq, int jointNumber, std::string enable, std::string step, std::string direction, int stepBit, volatile int32_t &ptrFrequencyCommand, volatile int32_t &ptrFeedback, volatile uint8_t &ptrJointEnable) :
+Stepgen::Stepgen(int32_t threadFreq, int jointNumber, const char* enable, const char* step, const char* direction, int stepBit, volatile int32_t &ptrFrequencyCommand, volatile int32_t &ptrFeedback, volatile uint8_t &ptrJointEnable) :
 	jointNumber(jointNumber),
 	enable(enable),
 	step(step),

@@ -1,9 +1,8 @@
 #include "TMCStepper.h"
-#include "TMC_MACROS.h"
 
 // Protected
 // addr needed for TMC2209
-TMC2208Stepper::TMC2208Stepper(std::string SWRXpin, std::string SWTXpin, float RS, uint8_t addr) :
+TMC2208Stepper::TMC2208Stepper(const char* SWRXpin, const char* SWTXpin, float RS, uint8_t addr) :
     SWRXpin(SWRXpin),
     SWTXpin(SWRXpin),
     TMCStepper(RS),

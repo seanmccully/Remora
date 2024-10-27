@@ -1,5 +1,6 @@
 #pragma once
 
+
 namespace TMC5160_n {
 
   struct STATUS_t {

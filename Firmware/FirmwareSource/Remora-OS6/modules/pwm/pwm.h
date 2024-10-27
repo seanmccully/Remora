@@ -3,14 +3,13 @@
 
 #include <cstdint>
 //#include <iostream>
-#include <string>
 
 #include "modules/module.h"
 #include "drivers/softPwm/softPwm.h"
 
-#include "extern.h"
+#include "remora.h"
 
-void createPWM(void);
+unique_ptr<Module> createPWM(const JsonObject& config);
 
 class PWM : public Module
 {
@@ -19,7 +18,7 @@ class PWM : public Module
 
 		volatile float* ptrSP; 			// pointer to the data source
 		int 			SP;
-		std::string 	portAndPin;
+		const char* 	portAndPin;
 		int 			pwmMax;
 
 		SoftPWM* 		pwm;			// pointer to PWM object - output
@@ -27,8 +26,8 @@ class PWM : public Module
 
 	public:
 
-		PWM(volatile float&, std::string);
-		PWM(volatile float&, std::string, int);
+		PWM(volatile float&, const char*);
+		PWM(volatile float&, const char*, int);
 
 		virtual void update(void);
 		virtual void slowUpdate(void);

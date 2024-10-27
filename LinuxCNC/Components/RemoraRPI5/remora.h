@@ -2,25 +2,56 @@
 #ifndef REMORA_H
 #define REMORA_H
 
+#include "rtapi.h"
+#include "rtapi_app.h"
+#include "hal.h"
+#include "rtapi_math.h"
 
-#define JOINTS				3  			// Number of joints - set this the same as Remora firmware code!!!. Max 8 joints
-#define VARIABLES          	6 			// Number of command values - set this the same Remora firmware code!!!
-#define DIGITAL_OUTPUTS		16
-#define DIGITAL_INPUTS		16
+#include <fcntl.h>
+#include <sys/socket.h>
+#include <linux/can.h>
+#include <linux/can/raw.h>
+#include <net/if.h>
+#include <sys/ioctl.h>
+#include <errno.h>
+#include <unistd.h>
+#include <string.h>
+#include <stdlib.h>
+#include <stdint.h>
+#include <stdbool.h>
 
-#define SPIBUFSIZE			64 			//(4+4*JOINTS+4*COMMANDS+1) //(MAX_MSG*4) //20  SPI buffer size ......FIFO buffer size is 64 bytes?
+// Configuration constants - these should match your system configuration
+#define JOINTS          3  // Number of joints
+#define VARIABLES       6  // Number of variables
+#define DIGITAL_OUTPUTS 16 // Number of digital outputs
+#define DIGITAL_INPUTS  16 // Number of digital inputs
+#define STEP_MASK      4095
+#define STEP_OFFSET    2048
+#define STEPBIT        21
 
-#define PRU_DATA			0x64617461 	// "data" SPI payload
-#define PRU_READ          	0x72656164  // "read" SPI payload
-#define PRU_WRITE         	0x77726974  // "writ" SPI payload
-#define PRU_ESTOP           0x65737470  // "estp" SPI payload
+// CAN Configuration
+#define CAN_BUFF_SIZE  128
+#define DEFAULT_CAN_INTERFACE "can0"
 
-#define STEPBIT				22			// bit location in DDS accum
-#define STEP_MASK			(1L<<STEPBIT)
-#define STEP_OFFSET			(1L<<(STEPBIT-1))
+// Message types
+#define MSG_STATUS    0x01
+#define MSG_JOINT_CMD 0x02
+#define MSG_JOINT_FB  0x03
+#define MSG_SETPOINT  0x04
+#define MSG_PV_FB     0x05
+#define MSG_DIG_OUT   0x06
+#define MSG_DIG_IN    0x07
 
-#define PRU_BASEFREQ		40000 		// Base freq of the PRU stepgen in Hz
+// Node IDs
+#define NODE_CONTROLLER 0x01
+#define NODE_REMORA     0x02
 
+// Priority Levels
+#define PRIO_HIGH   0x00
+#define PRIO_MEDIUM 0x01
+#define PRIO_LOW    0x02
 
+#define MODNAME "remora"
+#define PREFIX "remora"
 
 #endif

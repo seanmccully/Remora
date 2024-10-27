@@ -1,41 +1,82 @@
 #ifndef PRUTHREAD_H
 #define PRUTHREAD_H
 
-#include "stm32f4xx_hal.h"
-#include "timer.h"
-
-// Standard Template Library (STL) includes
-#include <iostream>
 #include <vector>
+#include <memory>
+#include <string>
+#include <atomic>
+#include "mbed.h"
+#include "module.h"
+#include "log.h"
 
-using namespace std;
+class pruThread {
+private:
+    // Thread configuration
+    std::string threadName;
+    uint32_t frequency;
+    uint32_t periodUs;
 
-class Module;
+    // Thread control
+    std::atomic<bool> threadRunning{false};
+    std::atomic<bool> threadPaused{false};
 
-class pruThread
-{
+    // Module management
+    std::vector<std::unique_ptr<Module>> modules;
 
-	private:
+    // Timing management
+    Timer threadTimer;
+    uint64_t nextThreadTime;
 
-		pruTimer* 		    TimerPtr;
-	
-		TIM_TypeDef* 	    timer;
-		IRQn_Type 			irq;
-		uint32_t 			frequency;
+    // Statistics
+    uint32_t worstCaseThreadTime;
+    uint32_t bestCaseThreadTime;
 
-		vector<Module*> vThread;		// vector containing pointers to Thread modules
-		vector<Module*>::iterator iter;
+    // Logger
+    Logger& logger;
 
-	public:
+    bool executeModules();
+    void waitForNextCycle(uint64_t startTime);
+    void updateThreadStats(uint64_t executionTime);
+public:
 
-		pruThread(TIM_TypeDef* timer, IRQn_Type irq, uint32_t frequency);
-
-		void registerModule(Module *module);
-        void unregisterModule(Module *module);
-		void startThread(void);
-        void stopThread(void);
-		void run(void);
+    pruThread(const std::string& name, uint32_t freq, Logger& log);
+    bool registerModule(std::unique_ptr<Module> module);
+    bool startThread();
+    void stopThread();
+    bool update();
+    void pauseThread();
+    void resumeThread();
+    bool isRunning() const;
+    bool isPaused() const;
+    uint32_t getWorstCaseTime() const;
+    uint32_t getBestCaseTime() const;
+    void resetThreadStats();
+    const std::string&getName() const;
+    uint32_t getFrequency() const;
+    size_t getModuleCount() const;
 };
 
-#endif
+/* Example usage in main loop:
+int main() {
+    Logger logger("/fs/log.txt");
 
+    // Create threads
+    auto baseThread = std::make_unique<pruThread>("Base", 1000, logger);  // 1kHz
+    auto servoThread = std::make_unique<pruThread>("Servo", 100, logger); // 100Hz
+
+    // Initialize threads
+    baseThread->startThread();
+    servoThread->startThread();
+
+    // Main loop
+    while(true) {
+        // Run thread updates
+        baseThread->update();
+        servoThread->update();
+
+        // Handle other tasks if needed
+        // ...
+    }
+}
+*/
+#endif

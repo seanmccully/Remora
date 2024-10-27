@@ -3,19 +3,15 @@
 /***********************************************************************
                 MODULE CONFIGURATION AND CREATION FROM JSON     
 ************************************************************************/
-void createEncoder()
-{
-    const char* comment = module["Comment"];
-    printf("%s\n",comment);
+unique_ptr<Module> createEncoder(const JsonObject& config) {
+    const char* comment = config["Comment"];
 
-    int pv = module["PV[i]"];
-    const char* pinA = module["ChA Pin"];
-    const char* pinB = module["ChB Pin"];
-    const char* pinI = module["Index Pin"];
-    int dataBit = module["Data Bit"];
-    const char* modifier = module["Modifier"];
-
-    printf("Creating Quadrature Encoder at pins %s and %s\n", pinA, pinB);
+    int pv = config["PV[i]"];
+    const char* pinA = config["ChA Pin"];
+    const char* pinB = config["ChB Pin"];
+    const char* pinI = config["Index Pin"];
+    int dataBit = config["Data Bit"];
+    const char* modifier = config["Modifier"];
 
     int mod;
 
@@ -39,28 +35,26 @@ void createEncoder()
     {
         mod = NONE;
     }
-    
-    ptrProcessVariable[pv]  = &txData.processVariable[pv];
-    ptrInputs = &txData.inputs;
 
     if (pinI == nullptr)
     {
-        Module* encoder = new Encoder(*ptrProcessVariable[pv], pinA, pinB, mod);
-        baseThread->registerModule(encoder);
+        return make_unique<Encoder>( txData.processVariable[pv], pinA, pinB, mod);
+        //baseThread->registerstd::make_unique<Module>(encoder);
+
     }
     else
     {
-        printf("  Encoder has index at pin %s\n", pinI);
-        Module* encoder = new Encoder(*ptrProcessVariable[pv], *ptrInputs, dataBit, pinA, pinB, pinI, mod);
-        baseThread->registerModule(encoder);
+        return make_unique<Encoder>(txData.processVariable[pv], txData.inputs, dataBit, pinA, pinB, pinI, mod);
+        //baseThread->registerstd::make_unique<Module>(encoder);
     }
+    return nullptr;
 }
 
 /***********************************************************************
 *                METHOD DEFINITIONS                                    *
 ************************************************************************/
 
-Encoder::Encoder(volatile float &ptrEncoderCount, std::string ChA, std::string ChB, int modifier) :
+Encoder::Encoder(volatile float &ptrEncoderCount, const char* ChA, const char* ChB, int modifier) :
 	ptrEncoderCount(&ptrEncoderCount),
 	ChA(ChA),
 	ChB(ChB),
@@ -72,7 +66,7 @@ Encoder::Encoder(volatile float &ptrEncoderCount, std::string ChA, std::string C
 	this->count = 0;								                // initialise the count to 0
 }
 
-Encoder::Encoder(volatile float &ptrEncoderCount, volatile uint16_t &ptrData, int bitNumber, std::string ChA, std::string ChB, std::string Index, int modifier) :
+Encoder::Encoder(volatile float &ptrEncoderCount, volatile uint16_t &ptrData, int bitNumber, const char* ChA, const char* ChB, const char* Index, int modifier) :
 	ptrEncoderCount(&ptrEncoderCount),
     ptrData(&ptrData),
     bitNumber(bitNumber),

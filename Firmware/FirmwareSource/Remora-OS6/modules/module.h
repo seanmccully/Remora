@@ -17,7 +17,6 @@ class Module
 
 
 	public:
-
 		Module();					// constructor to run the module at the thread frequency
 		Module(int32_t, int32_t);	// constructor to run the module at a "slow update frequency" < thread frequency
 

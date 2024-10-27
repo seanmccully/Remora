@@ -3,16 +3,15 @@
 
 #include <cstdint>
 #include <iostream>
-#include <string>
 
 #include "../../configuration.h"
 #include "../../remora.h"
 #include "modules/module.h"
 #include "drivers/pin/pin.h"
 
-#include "extern.h"
+#include "remora.h"
 
-void createEStop(void);
+unique_ptr<Module> createEStop(const JsonObject& config);
 
 class eStop : public Module
 {
@@ -20,14 +19,14 @@ class eStop : public Module
 	private:
 
         volatile int32_t *ptrTxHeader;
-		std::string 	portAndPin;
+		const char* 	portAndPin;
 
         Pin *pin;
 
 
 	public:
 
-		eStop(volatile int32_t&, std::string);
+		eStop(volatile int32_t&, const char*);
 
 		virtual void update(void);
 		virtual void slowUpdate(void);

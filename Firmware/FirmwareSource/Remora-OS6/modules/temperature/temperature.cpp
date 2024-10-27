@@ -5,36 +5,31 @@
                 MODULE CONFIGURATION AND CREATION FROM JSON     
 ************************************************************************/
 
-void createTemperature()
-{
-    printf("Make Temperature measurement object\n");
-    const char* comment = module["Comment"];
-    printf("%s\n",comment);
+unique_ptr<Module> createTemperature(const JsonObject& config) {
+    const char* comment = config["Comment"];
 
-    int pv = module["PV[i]"];
-    const char* sensor = module["Sensor"];
-
-    ptrProcessVariable[pv]  = &txData.processVariable[pv];
+    int pv = config["PV[i]"];
+    const char* sensor = config["Sensor"];
 
     if (!strcmp(sensor, "Thermistor"))
     {
-        const char* pinSensor = module["Thermistor"]["Pin"];
-        float beta =  module["Thermistor"]["beta"];
-        int r0 = module["Thermistor"]["r0"];
-        int t0 = module["Thermistor"]["t0"];
+        const char* pinSensor = config["Thermistor"]["Pin"];
+        float beta =  config["Thermistor"]["beta"];
+        int r0 = config["Thermistor"]["r0"];
+        int t0 = config["Thermistor"]["t0"];
 
         // slow module with 1 hz update
         int updateHz = 1;
-        Module* temperature = new Temperature(*ptrProcessVariable[pv], PRU_SERVOFREQ, updateHz, sensor, pinSensor, beta, r0, t0);
-        servoThread->registerModule(temperature);
+        return make_unique<Temperature>(txData.processVariable[pv], PRU_SERVOFREQ, updateHz, sensor, pinSensor, beta, r0, t0);
     }
+    return nullptr;
 }
 
 /***********************************************************************
 *                METHOD DEFINITIONS                                    *
 ************************************************************************/
 
-Temperature::Temperature(volatile float &ptrFeedback, int32_t threadFreq, int32_t slowUpdateFreq, std::string sensorType, std::string pinSensor, float beta, int r0, int t0) :
+Temperature::Temperature(volatile float &ptrFeedback, int32_t threadFreq, int32_t slowUpdateFreq, const char* sensorType, const char* pinSensor, float beta, int r0, int t0) :
   Module(threadFreq, slowUpdateFreq),
   ptrFeedback(&ptrFeedback),
   sensorType(sensorType),
@@ -45,8 +40,6 @@ Temperature::Temperature(volatile float &ptrFeedback, int32_t threadFreq, int32_
 {
     if (this->sensorType == "Thermistor")
     {
-        printf("Creating Thermistor Tempearture measurement @ pin %s\n", this->pinSensor.c_str());
-        //cout <<"Creating Thermistor Tempearture measurement @ pin " << this->pinSensor << endl;
         this->Sensor = new Thermistor(this->pinSensor, this->beta, this->r0, this->t0);
     }
     // TODO: Add more sensor types as needed
@@ -54,8 +47,6 @@ Temperature::Temperature(volatile float &ptrFeedback, int32_t threadFreq, int32_
     // Take some readings to get the ADC up and running before moving on
     this->slowUpdate();
     this->slowUpdate();
-    printf("Start temperature = %f\n", this->temperaturePV);
-    //cout << "Start temperature = " << this->temperaturePV << endl;
 }
 
 void Temperature::update()
@@ -74,8 +65,6 @@ void Temperature::slowUpdate()
     }
     else
     {
-        printf("Temperature sensor error, pin %s reading = %f\n", this->pinSensor.c_str(), this->temperaturePV);
-        //cout << "Temperature sensor error, pin " << this->pinSensor << " reading = " << this->temperaturePV << endl;
         *(this->ptrFeedback) = 999;
     }
 

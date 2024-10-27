@@ -1,8 +1,9 @@
+#ifndef TMCSTEPPER_H
+#define TMCSTEPPER_H
+
 #include "mbed.h"
-#include <cstdint>
-#include "../SoftwareSerial/SoftwareSerial.h"
-#include "../pin/pin.h"
-#include <TMCSPI.h>
+#include <algorithm>
+#include "TMCSPI.h"
 
 //#include "TMC2130_bitfields.h"
 //#include "TMC2160_bitfields.h"
@@ -11,6 +12,8 @@
 #include "TMC2208_bitfields.h"
 #include "TMC2209_bitfields.h"
 //#include "TMC2660_bitfields.h"
+#include "../SoftwareSerial/SoftwareSerial.h"
+#include "../pin/pin.h"
 
 
 #define INIT_REGISTER(REG) REG##_t REG##_register = REG##_t
@@ -112,7 +115,7 @@ class TMCStepper {
 class TMC2208Stepper : public TMCStepper {
     public:
 
-        TMC2208Stepper(std::string SWRXpin, std::string SWTXpin, float RS) :
+        TMC2208Stepper(const char* SWRXpin, const char* SWTXpin, float RS) :
                 TMC2208Stepper(SWRXpin, SWTXpin, RS, TMC2208_SLAVE_ADDR)
                 {}
 
@@ -275,10 +278,10 @@ class TMC2208Stepper : public TMCStepper {
 
         //SoftwareSerial * SWSerial = nullptr;
 
-        TMC2208Stepper(std::string SWRXpin, std::string SWTXpin, float RS, uint8_t addr);
+        TMC2208Stepper(const char* SWRXpin, const char* SWTXpin, float RS, uint8_t addr);
 
-        std::string SWTXpin;
-        std::string SWRXpin;
+        const char* SWTXpin;
+        const char* SWRXpin;
 
         DigitalOut* debug1;
         DigitalOut* debug2;
@@ -306,7 +309,7 @@ class TMC2208Stepper : public TMCStepper {
 class TMC2209Stepper : public TMC2208Stepper {
     public:
 
-        TMC2209Stepper(std::string SWRXpin, std::string SWTXpin, float RS, uint8_t addr) :
+        TMC2209Stepper(const char* SWRXpin, const char* SWTXpin, float RS, uint8_t addr) :
                 TMC2208Stepper(SWRXpin, SWTXpin, RS, addr) {}
 
         void push();
@@ -362,17 +365,21 @@ typedef enum {
 } TMC_i2c_registers_t;
 
 
-class TMC5160Stepper : public TMCStepper {
+class TMC5160Stepper  {
     private:
 
+        static const uint16_t SPI_TIMEOUT = 1000; // ms
+        static const uint8_t MAX_SPI_RETRIES = 3;
         uint16_t bytesWritten = 0;
         float Rsense = 0.05;
         bool CRCerror = false;
         float holdMultiplier = 0.5;
+        bool validateRegisterWrite(TMC5160_n::TMC_spi_datagram_t *reg, uint32_t expected_value);
+        void cleanup();
     public:
 
-        //TMC5160Stepper(std::string SWRXpin, std::string SWTXpin, float RS, uint8_t addr);
-        TMC5160Stepper(string cs_pin, string spi_bus, 
+        //TMC5160Stepper(string SWRXpin, string SWTXpin, float RS, uint8_t addr);
+        TMC5160Stepper(const char* cs_pin, const char* spi_bus, 
                        uint8_t r_sense, uint8_t current, uint16_t microsteps, bool stealthchop);
 
 
@@ -382,6 +389,7 @@ class TMC5160Stepper : public TMCStepper {
         void defaults (TMC5160_n::TMC5160_t *driver);
         void push();
         void begin();
+        uint8_t test_connection();
 
         void _set_rms_current();
         void defaults ();
@@ -405,6 +413,7 @@ class TMC5160Stepper : public TMCStepper {
         uint32_t getStallGuardResult();
         void setThresholdSpeed(uint32_t tpwmthrs, uint32_t tcoolthrs, uint32_t thigh);
         void setPowerStageParameters(uint8_t tbl, uint8_t toff, uint8_t hstrt, uint8_t hend);
+				TMC5160_n::TMC5160_t* createTMC5160Defaults(); 
 
         bool MicrostepsIsValid (uint16_t usteps);
         bool tmc_microsteps_validate (uint16_t microsteps);
@@ -429,6 +438,7 @@ class TMC5160Stepper : public TMCStepper {
         uint8_t mres();
         void tbl(uint8_t);
         uint8_t tbl();
+        ~TMC5160Stepper();
 
     protected:
 
@@ -446,3 +456,5 @@ class TMC5160Stepper : public TMCStepper {
 
         uint8_t calcCRC(uint8_t datagram[], uint8_t len);
 };
+
+#endif

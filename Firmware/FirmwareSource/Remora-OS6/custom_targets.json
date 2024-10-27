@@ -19,32 +19,41 @@
         "device_name": "STM32G0B1RETx",
         "bootloader_supported": true
     },
-    "SKRV3": {
-        "inherits": [
-            "MCU_STM32H743xI"
-        ],
-        "extra_labels_add": ["STM32H743xI"],
-        "config": {
-            "hse_value": {
-                "help": "HSE default value is 25MHz in HAL",
-                "value": "25000000",
-                "macro_name": "HSE_VALUE"
-            }
-        },
+		"SKRV3": {
+        "inherits": ["MCU_STM32H723xG"],
+        "c_lib": "std",
+        "extra_labels_add": ["STM32H723xG", "STM32H7_550MHZ" ],
+        "device_name": "STM32H723ZGTx", 
+        "mbed_rom_start": "0x08000000",
+        "mbed_rom_size": "0x100000",   
+        "mbed_ram_start": "0x20000000",
+        "mbed_ram_size": "0x20000",     
+        "bootloader_supported": true,
+        "storage.filesystem.fat.enable": true,
+        "config": {  },
         "overrides": {
-            "clock_source": "USE_PLL_HSE_XTAL",
-            "lse_available": 0
+            "system_power_supply": "PWR_LDO_SUPPLY",
+            "clock_source": "USE_PLL_HSE_EXTC|USE_PLL_HSI",
+            "lse_available": 0,
+            "hse_value": 25000000,
+            "i2c_timing_value_algo": true
         },
+        
         "macros_add": [
-            "STM32H743xx"
+            "MBED_SPLIT_HEAP",
+            "STM32H723xx",
+            "MBED_CRASH_REPORTING"
         ],
         "device_has_add": [
             "FLASH",
             "SERIAL_ASYNCH",
-            "MPU"
+            "MPU",
+            "ANALOGOUT",
+            "CAN",
+            "SD",
+            "USB_DEVICE"
         ],
-        
-        "device_name": "STM32H743VITx"
+        "supported_toolchains": ["GCC_ARM", "ARM"]
     },
     "SKRV2": {
         "inherits": ["MCU_STM32F4"],
@@ -178,7 +187,7 @@
         "bootloader_supported": true
     },
     "OCTOPUS_446": {
-        "inherits": ["MCU_STM32F4"],
+        "inherits": [ "MCU_STM32F446xE" ],
         "core": "Cortex-M4F",
         "extra_labels_add": [
             "STM32F4", 
@@ -188,21 +197,13 @@
             "STM32F446xx"
         ],
         "supported_toolchains": ["ARM", "uARM", "GCC_ARM", "IAR"],
-
-        "config": {     "hse_value": {
-                "help": "HSE default value is 8MHz in stm32g4xx_hal_conf.h",
-                "value": "12000000",
-                "macro_name": "HSE_VALUE"
-            }
-     
-        },
-         "overrides": { "lse_available": 0 ,
-            "clock_source":  "USE_PLL_HSE_XTAL"
-         },
         "device_has_add": [
-            "ANALOGOUT",
+            "FLASH",
             "SERIAL_ASYNCH",
-            "MPU"
+            "MPU",
+            "ANALOGOUT",
+            "CAN",
+            "SD"
         ],
         "device_name": "STM32F446ZETx",
         "bootloader_supported": true
@@ -244,7 +245,8 @@
         "core": "Cortex-M3",
         "extra_labels_add": ["STM32F103xC"],
         "macros_add": ["STM32F103xE"],
-        "supported_toolchains": ["ARMC6"],
+
+        "supported_toolchains": ["ARM"],
 
         "device_has_add": [
             "CAN",
@@ -268,8 +270,7 @@
         "core": "Cortex-M3",
         "extra_labels_add": ["STM32F103xC"],
         "macros_add": ["STM32F103xE"],
-        "supported_toolchains": ["ARMC6"],
-
+        "supported_toolchains": ["GCC_ARM"],
         "device_has_add": [
             "CAN",
             "SERIAL_ASYNCH",

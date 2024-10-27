@@ -2,7 +2,6 @@
 #define THERMISTOR_H
 
 #include <stdint.h>
-#include <string>
 
 #include "sensors/tempSensor.h"
 #include "drivers/pin/pin.h"
@@ -13,7 +12,7 @@ class Thermistor : public TempSensor
 {
 	private:
 
-		std::string pin;
+		const char* pin;
 
         AnalogIn *adc;
 
@@ -49,7 +48,7 @@ class Thermistor : public TempSensor
 
 		Pin *thermistorPin;
 
-		Thermistor(std::string, float, int, int);
+		Thermistor(const char*, float, int, int);
 
 		int newThermistorReading();
 		float adcValueToTemperature();

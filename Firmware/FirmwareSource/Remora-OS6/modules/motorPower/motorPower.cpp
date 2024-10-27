@@ -4,17 +4,11 @@
                 MODULE CONFIGURATION AND CREATION FROM JSON     
 ************************************************************************/
 
-void createMotorPower()
-{
-    const char* comment = module["Comment"];
-    printf("%s\n",comment);
+unique_ptr<Module> createMotorPower(const JsonObject& config) {
+    const char* comment = config["Comment"];
+    const char* pin = config["Pin"];
 
-    const char* pin = module["Pin"];
-
-    printf("Make Motor Power at pin %s\n", pin);
-
-    Module* motPower = new MotorPower(pin);
-    delete motPower;
+    return make_unique<MotorPower>(pin);
 }
 
 
@@ -22,7 +16,7 @@ void createMotorPower()
                 METHOD DEFINITIONS
 ************************************************************************/
 
-MotorPower::MotorPower(std::string portAndPin) :
+MotorPower::MotorPower(const char* portAndPin) :
 	portAndPin(portAndPin)
 {
 	this->pin = new Pin(this->portAndPin, 0x1);		// Input 0x0, Output 0x1

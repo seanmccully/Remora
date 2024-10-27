@@ -4,11 +4,11 @@
 
 
 
-SoftwareSerial::SoftwareSerial(std::string tx, std::string rx)
+SoftwareSerial::SoftwareSerial(const char* tx, const char* rx)
 {
-    if (!tx.empty()) TXportAndPin = tx;
-    if (!rx.empty()) RXportAndPin = rx;
-    halfDuplex = !TXportAndPin.compare(RXportAndPin);
+    TXportAndPin = tx;
+    RXportAndPin = rx;
+    halfDuplex = 1;
 
     if(halfDuplex)
     {

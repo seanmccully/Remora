@@ -7,9 +7,9 @@
 #include "module.h"
 #include "qeiDriver.h"
 
-#include "extern.h"
+#include "remora.h"
 
-void createQEI(void);
+unique_ptr<Module> createQEI(const JsonObject& config);
 
 class QEI : public Module
 {

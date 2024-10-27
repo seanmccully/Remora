@@ -2,15 +2,14 @@
 #define STEPGEN_H
 
 #include <cstdint>
-#include <string>
 #include <iostream>
 
 #include "modules/module.h"
 #include "drivers/pin/pin.h"
 
-#include "extern.h"
+#include "remora.h"
 
-void createStepgen(void);
+unique_ptr<Module> createStepgen(const JsonObject& config);
 
 class Stepgen : public Module
 {
@@ -19,7 +18,9 @@ class Stepgen : public Module
     int jointNumber;              	// LinuxCNC joint number
     int mask;
 
-    std::string enable, step, direction;	 // physical pins connections
+    const char* enable;
+    const char* step;
+    const char* direction;	 // physical pins connections
 
     bool isEnabled;        	// flag to enable the step generator
     bool isForward;        	// current diretion
@@ -36,7 +37,7 @@ class Stepgen : public Module
 
   public:
 
-    Stepgen(int32_t, int, std::string, std::string, std::string, int, volatile int32_t&, volatile int32_t&, volatile uint8_t&);  // constructor
+    Stepgen(int32_t, int, const char*, const char*, const char*, int, volatile int32_t&, volatile int32_t&, volatile uint8_t&);  // constructor
 
     Pin *enablePin, *stepPin, *directionPin;		// class object members - Pin objects
 

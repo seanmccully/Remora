@@ -27,7 +27,7 @@ pruTimer::pruTimer(TIM_TypeDef* timer, IRQn_Type irq, uint32_t frequency, pruThr
 void pruTimer::timerTick(void)
 {
 	//Do something here
-	this->timerOwnerPtr->run();
+	this->timerOwnerPtr->update();
 }
 
 
@@ -38,26 +38,22 @@ void pruTimer::startTimer(void)
 
     if (this->timer == TIM3)
     {
-        printf("	power on Timer 3\n\r");
         __TIM3_CLK_ENABLE();
         TIM_CLK = APB1CLK;
     }
     else if (this->timer == TIM4)
     {
-        printf("	power on Timer 4\n\r");
         __TIM4_CLK_ENABLE();
         TIM_CLK = APB1CLK;
     }
     else if (this->timer == TIM5)
     {
-        printf("	power on Timer 5\n\r");
         __TIM5_CLK_ENABLE();
         TIM_CLK = APB1CLK;
     }
     /**
     else if (this->timer == TIM11)
     {
-        printf("	power on Timer 11\n\r");
         __TIM11_CLK_ENABLE();
         TIM_CLK = APB1CLK;
     }
@@ -79,6 +75,5 @@ void pruTimer::stopTimer()
 {
     NVIC_DisableIRQ(this->irq);
 
-    printf("	timer stop\n\r");
     this->timer->CR1 &= (~(TIM_CR1_CEN));     // disable timer
 }

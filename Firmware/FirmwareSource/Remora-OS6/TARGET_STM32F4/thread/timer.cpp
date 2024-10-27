@@ -27,7 +27,7 @@ pruTimer::pruTimer(TIM_TypeDef* timer, IRQn_Type irq, uint32_t frequency, pruThr
 void pruTimer::timerTick(void)
 {
 	//Do something here
-	this->timerOwnerPtr->run();
+	this->timerOwnerPtr->update();
 }
 
 

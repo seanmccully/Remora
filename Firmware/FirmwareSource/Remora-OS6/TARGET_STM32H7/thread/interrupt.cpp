@@ -14,7 +14,6 @@ Interrupt::Interrupt(void){}
 
 void Interrupt::Register(int interruptNumber, Interrupt* intThisPtr)
 {
-	printf("Registering interrupt for interrupt number = %d\n", interruptNumber);
 	ISRVectorTable[interruptNumber] = intThisPtr;
 }
 

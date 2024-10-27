@@ -4,16 +4,14 @@
                 MODULE CONFIGURATION AND CREATION FROM JSON     
 ************************************************************************/
 
-void createDigitalPin()
-{
-    const char* comment = module["Comment"];
-    printf("%s\n",comment);
+unique_ptr<Module> createDigitalPin(const JsonObject& config) {
+    const char* comment = config["Comment"];
 
-    const char* pin = module["Pin"];
-    const char* mode = module["Mode"];
-    const char* invert = module["Invert"];
-    const char* modifier = module["Modifier"];
-    int dataBit = module["Data Bit"];
+    const char* pin = config["Pin"];
+    const char* mode = config["Mode"];
+    const char* invert = config["Invert"];
+    const char* modifier = config["Modifier"];
+    int dataBit = config["Data Bit"];
 
     int mod;
     bool inv;
@@ -45,27 +43,17 @@ void createDigitalPin()
     }
     else inv = false;
 
-    ptrOutputs = &rxData.outputs;
-    ptrInputs = &txData.inputs;
-
-    printf("Make Digital %s at pin %s\n", mode, pin);
 
     if (!strcmp(mode,"Output"))
     {
-        //Module* digitalPin = new DigitalPin(*ptrOutputs, 1, pin, dataBit, invert);
-        Module* digitalPin = new DigitalPin(*ptrOutputs, 1, pin, dataBit, inv, mod);
-        servoThread->registerModule(digitalPin);
+        return std::make_unique<DigitalPin>(ptrRxData->outputs, 1, pin, dataBit, inv, mod);
     }
     else if (!strcmp(mode,"Input"))
     {
-        //Module* digitalPin = new DigitalPin(*ptrInputs, 0, pin, dataBit, invert);
-        Module* digitalPin = new DigitalPin(*ptrInputs, 0, pin, dataBit, inv, mod);
-        servoThread->registerModule(digitalPin);
+        std::make_unique<DigitalPin>(ptrTxData->inputs, 0, pin, dataBit, inv, mod);
     }
-    else
-    {
-        printf("Error - incorrectly defined Digital Pin\n");
-    }
+
+    return nullptr;
 }
 
 
@@ -73,7 +61,7 @@ void createDigitalPin()
                 METHOD DEFINITIONS
 ************************************************************************/
 
-DigitalPin::DigitalPin(volatile uint16_t &ptrData, int mode, std::string portAndPin, int bitNumber, bool invert, int modifier) :
+DigitalPin::DigitalPin(volatile uint16_t &ptrData, int mode, const char* portAndPin, int bitNumber, bool invert, int modifier) :
 	ptrData(&ptrData),
 	mode(mode),
 	portAndPin(portAndPin),

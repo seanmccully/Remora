@@ -7,20 +7,17 @@
 /***********************************************************************
                 MODULE CONFIGURATION AND CREATION FROM JSON     
 ************************************************************************/
-void createTMC2208()
-{
-    printf("Make TMC2208\n");
+unique_ptr<Module> createTMC2208(const JsonObject& config) {
 
-    const char* comment = module["Comment"];
-    printf("%s\n",comment);
+    const char* comment = config["Comment"];
 
-    const char* RxPin = module["RX pin"];
-    float RSense = module["RSense"];
-    uint8_t address = module["Address"];
-    uint16_t current = module["Current"];
-    uint16_t microsteps = module["Microsteps"];
-    const char* stealth = module["Stealth chop"];
-    uint16_t stall = module["Stall sensitivity"];
+    const char* RxPin = config["RX pin"];
+    float RSense = config["RSense"];
+    uint8_t address = config["Address"];
+    uint16_t current = config["Current"];
+    uint16_t microsteps = config["Microsteps"];
+    const char* stealth = config["Stealth chop"];
+    uint16_t stall = config["Stall sensitivity"];
 
     bool stealthchop;
 
@@ -35,19 +32,7 @@ void createTMC2208()
 
     // SW Serial pin, RSense, mA, microsteps, stealh
     // TMC2208(std::string, float, uint8_t, uint16_t, uint16_t, bool);
-    Module* tmc = new TMC2208(RxPin, RSense, current, microsteps, stealthchop);
-
-    printf("\nStarting the COMMS thread\n");
-    commsThread->startThread();
-    commsThread->registerModule(tmc);
-
-    tmc->configure();
-
-    printf("\nStopping the COMMS thread\n");
-    commsThread->stopThread();
-    commsThread->unregisterModule(tmc);
-
-    delete tmc;
+    return make_unique<TMC2208>(RxPin, RSense, current, microsteps, stealthchop);
 }
 
 
@@ -57,7 +42,7 @@ void createTMC2208()
 
     // SW Serial pin, RSense, mA, microsteps, stealh, hybrid
     // TMC2209(std::string, float, uint8_t, uint16_t, uint16_t, bool);
-TMC2208::TMC2208(std::string rxtxPin, float Rsense, uint16_t mA, uint16_t microsteps, bool stealth) :
+TMC2208::TMC2208(const char* rxtxPin, float Rsense, uint16_t mA, uint16_t microsteps, bool stealth) :
     rxtxPin(rxtxPin),
     mA(mA),
     microsteps(microsteps),
@@ -78,24 +63,7 @@ void TMC2208::configure()
 
     driver->begin();
     
-    printf("Testing connection to TMC driver...");
     result = driver->test_connection();
-    if (result) {
-        printf("failed!\n");
-        printf("Likely cause: ");
-        switch(result) {
-            case 1: printf("loose connection\n"); break;
-            case 2: printf("no power\n"); break;
-        }
-        printf("  Fix the problem and reset board.\n");
-        //abort();
-    }
-    else   
-    {
-        printf("OK\n");
-    }
-
-
     // Sets the slow decay time (off time) [1... 15]. This setting also limits
     // the maximum chopper frequency. For operation with StealthChop,
     // this parameter is not used, but it is required to enable the motor.

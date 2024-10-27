@@ -4,42 +4,31 @@
                 MODULE CONFIGURATION AND CREATION FROM JSON     
 ************************************************************************/
 
-void createSwitch()
-{
-    const char* comment = module["Comment"];
-    printf("%s\n",comment);
+unique_ptr<Module> createSwitch(const JsonObject& config) {
+    const char* comment = config["Comment"];
 
-    const char* pin = module["Pin"];
-    const char* mode = module["Mode"];
-    int pv = module["PV[i]"];
-    float sp = module["SP"];
-
-    printf("Make Switch (%s) at pin %s\n", mode, pin);
+    const char* pin = config["Pin"];
+    const char* mode = config["Mode"];
+    int pv = config["PV[i]"];
+    float sp = config["SP"];
 
     if (!strcmp(mode,"On"))
     {
-        Module* SoftSwitch = new Switch(sp, *ptrProcessVariable[pv], pin, 1);
-        servoThread->registerModule(SoftSwitch);
+        return make_unique<Switch>(sp, txData.processVariable[pv], pin, 1);
     }
     else if (!strcmp(mode,"Off"))
     {
-        Module* SoftSwitch = new Switch(sp, *ptrProcessVariable[pv], pin, 0);
-        servoThread->registerModule(SoftSwitch);
+        return make_unique<Switch>(sp, txData.processVariable[pv], pin, 0);
     }
-    else
-    {
-        printf("Error - incorrectly defined Switch\n");
-    }
+    return nullptr;
 }
 
-Switch::Switch(float SP, volatile float &ptrPV, std::string portAndPin, bool mode) :
+Switch::Switch(float SP, volatile float &ptrPV, const char* portAndPin, bool mode) :
 	SP(SP),
 	ptrPV(&ptrPV),
 	portAndPin(portAndPin),
 	mode(mode)
 {
-    printf("Creating a Switch\n");
-	//cout << "Creating a Switch @ pin " << this->portAndPin << endl;
 	int output = 0x1; // an output
 	this->pin = new Pin(this->portAndPin, output);
 }

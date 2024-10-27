@@ -4,19 +4,15 @@
                 MODULE CONFIGURATION AND CREATION FROM JSON     
 ************************************************************************/
 
-void createEStop()
-{
-    const char* comment = module["Comment"];
-    printf("%s\n",comment);
+unique_ptr<Module> createEStop(const JsonObject& config) {
 
-    const char* pin = module["Pin"];
+    const char* comment = config["Comment"];
 
-    ptrTxHeader = &txData.header;
+    const char* pin = config["Pin"];
 
-    printf("Make eStop at pin %s\n", pin);
+    //ptrTxHeader = &txData.header;
 
-    Module* estop = new eStop(*ptrTxHeader, pin);
-    servoThread->registerModule(estop);
+    return make_unique<eStop>(txData.header, pin);
 }
 
 
@@ -24,7 +20,7 @@ void createEStop()
                 METHOD DEFINITIONS
 ************************************************************************/
 
-eStop::eStop(volatile int32_t &ptrTxHeader, std::string portAndPin) :
+eStop::eStop(volatile int32_t &ptrTxHeader, const char* portAndPin) :
     ptrTxHeader(&ptrTxHeader),
 	portAndPin(portAndPin)
 {

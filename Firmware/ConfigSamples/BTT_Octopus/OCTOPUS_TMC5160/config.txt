@@ -1,0 +1,136 @@
+{
+    "Board": "BIGTREETECH SKR v3",
+    "Modules": [
+
+          {
+          "Thread": "Servo",
+          "Type": "Blink",
+            "Pin":				"PA1",
+            "Frequency":		2
+          },	
+        {
+            "Thread": "Servo",
+            "Type": "Reset Pin",
+            "Comment": "Reset pin",
+            "Pin": "PC_15"
+        },
+        {
+            "Thread": "On load",
+            "Type": "Motor Power",
+            "Comment": "Enable motor power SKR3",
+            "Pin": "PC_13"
+        },
+        {
+            "Thread": "Base",
+            "Type": "Stepgen",
+            "Comment": "X - Joint 0 step generator",
+            "Joint Number": 0,
+            "Step Pin": "PF_13",
+            "Direction Pin": "PF_12",
+            "Enable Pin": "PF_14"
+        },
+        {
+            "Thread": "On load",
+            "Type": "TMC5160",
+            "Comment": "X - Joint 0 TMC driver",
+            "CS pin": "PC_4
+            "SPI bus": "spi1",
+            "RSense": 0.05,
+            "Current": 2000,
+            "Microsteps": 32,
+            "Stealth chop": "on",
+            "Stall sensitivity": 0
+        },
+        {
+            "Thread": "Base",
+            "Type": "Stepgen",
+            "Comment": "Y - Joint 1 step generator",
+            "Joint Number": 1,
+            "Step Pin": "PG_0",
+            "Direction Pin": "PG_1",
+            "Enable Pin": "PF_15"
+        },
+        {
+            "Thread": "On load",
+            "Type": "TMC5160",
+            "Comment": "Y - Joint 1 TMC driver",
+            "CS pin": "PD_11",
+            "SPI bus": "spi1",
+            "RSense": 0.05,
+            "Current": 2000,
+            "Microsteps": 32,
+            "Stealth chop": "on",
+            "Stall sensitivity": 0
+        },
+        {
+            "Thread": "Base",
+            "Type": "Stepgen",
+            "Comment": "Z - Joint 2 step generator",
+            "Joint Number": 2,
+            "Step Pin": "PF_11",
+            "Direction Pin": "PG_3",
+            "Enable Pin": "PG_5"
+        },
+        {
+            "Thread": "On load",
+            "Type": "TMC5160",
+            "Comment": "Z - Joint 2 TMC driver",
+            "CS pin": "PC_6",
+            "SPI bus": "spi1",
+            "RSense": 0.05,
+            "Current": 2000,
+            "Microsteps": 32,
+            "Stealth chop": "on",
+            "Stall sensitivity": 0
+        },
+
+        {
+            "Thread": "Servo",
+            "Type": "Digital Pin",
+            "Comment": "X min",
+            "Pin": "PG_6",
+            "Mode": "Input",
+            "Data Bit": 0
+        },
+        {
+            "Thread": "Servo",
+            "Type": "Digital Pin",
+            "Comment": "X max",
+            "Pin": "PG_13",
+            "Mode": "Input",
+            "Data Bit": 1
+        },
+        {
+            "Thread": "Servo",
+            "Type": "Digital Pin",
+            "Comment": "Y min",
+            "Pin": "PG_9",
+            "Mode": "Input",
+            "Data Bit": 2
+        },
+        {
+            "Thread": "Servo",
+            "Type": "Digital Pin",
+            "Comment": "Y max",
+            "Pin": "PG_14",
+            "Mode": "Input",
+            "Data Bit": 3
+        },
+        {
+            "Thread": "Servo",
+            "Type": "Digital Pin",
+            "Comment": "Z min",
+            "Pin": "PG_10",
+            "Mode": "Input",
+            "Data Bit": 4
+        },
+        {
+            "Thread": "Servo",
+            "Type": "Digital Pin",
+            "Comment": "Z max",
+            "Pin": "PG_11",
+            "Mode": "Input",
+            "Data Bit": 5
+        }
+    ]
+}

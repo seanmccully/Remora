@@ -6,21 +6,21 @@
 #include "modules/module.h"
 #include "drivers/pin/pin.h"
 
-#include "extern.h"
+#include "remora.h"
 
-void createMotorPower(void);
+unique_ptr<Module> createMotorPower(const JsonObject& config);
 
 class MotorPower : public Module
 {
 	private:
 
-		std::string portAndPin;
+		const char* portAndPin;
 
 		Pin *pin;
 
 	public:
 
-        MotorPower(std::string);
+        MotorPower(const char*);
 		virtual void update(void);
 		virtual void slowUpdate(void);
 };

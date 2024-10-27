@@ -2,21 +2,21 @@
 #define MCP4451_H
 
 #include "mbed.h"
-#include <string>
 
 #include "module.h"
 #include "pin.h"
 
-#include "extern.h"
+#include "remora.h"
 
 
-void createMCP4451(void);
+unique_ptr<Module> createMCP4451(const JsonObject& config);
 
 class MCP4451 : public Module
 {
   private:
 
-    std::string scl, sda; // i2c SCL and SDA portAndPin
+    const char* scl;
+    const char* sda; // i2c SCL and SDA portAndPin
     Pin *sclPin, *sdaPin;
     I2C *i2c;
 
@@ -32,8 +32,7 @@ class MCP4451 : public Module
 
   public:
 
-    MCP4451(std::string, std::string, char, float, float, float, float, float, float);
-    //mcp4451(std::string, std::string, char);
+    MCP4451(const char*, const char*, char, float, float, float, float, float, float);
     ~MCP4451();
 
     void set_max_current(float c) { maxCurrent= c; }

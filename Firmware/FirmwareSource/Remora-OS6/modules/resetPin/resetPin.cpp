@@ -4,19 +4,11 @@
                 MODULE CONFIGURATION AND CREATION FROM JSON     
 ************************************************************************/
 
-void createResetPin()
-{
-    const char* comment = module["Comment"];
-    printf("%s\n",comment);
+unique_ptr<Module> createResetPin(const JsonObject& config) {
+    const char* comment = config["Comment"];
+    const char* pin = config["Pin"];
 
-    const char* pin = module["Pin"];
-
-    ptrPRUreset = &PRUreset;
-
-    printf("Make Reset Pin at pin %s\n", pin);
-
-    Module* resetPin = new ResetPin(*ptrPRUreset, pin);
-    servoThread->registerModule(resetPin);
+    return  make_unique<ResetPin>(PRUreset, pin);
 }
 
 
@@ -24,11 +16,11 @@ void createResetPin()
                 METHOD DEFINITIONS
 ************************************************************************/
 
-ResetPin::ResetPin(volatile bool &ptrReset, std::string portAndPin) :
+ResetPin::ResetPin(volatile bool &ptrReset, const char* portAndPin) :
 	ptrReset(&ptrReset),
 	portAndPin(portAndPin)
 {
-	this->pin = new Pin(this->portAndPin, 0);		// Input 0x0, Output 0x1
+	this->pin = new Pin(portAndPin, 0);		// Input 0x0, Output 0x1
 }
 
 

@@ -3,14 +3,13 @@
 
 #include <cstdint>
 //#include <iostream>
-#include <string>
 
 #include "modules/module.h"
 #include "drivers/pin/pin.h"
 
-#include "extern.h"
+#include "remora.h"
 
-void createSwitch(void);
+unique_ptr<Module> createSwitch(const JsonObject& config);
 
 class Switch : public Module
 {
@@ -21,14 +20,14 @@ class Switch : public Module
 		float 			PV;
 		float 			SP;
 		bool			mode;			// 0 switch off, 1 switch on
-		std::string 	portAndPin;
+		const char* 	portAndPin;
 
 		Pin 			*pin;
 
 
 	public:
 
-		Switch(float, volatile float&, std::string, bool);
+		Switch(float, volatile float&, const char*, bool);
 
 		virtual void update(void);
 		virtual void slowUpdate(void);

@@ -25,8 +25,8 @@ class SoftwareSerial
     //void ritisr(void);                      // the default (instance) isr
     //static void _ritisr(void);              // the actual static isr
 
-    std::string     TXportAndPin;
-    std::string     RXportAndPin;
+    const char*     TXportAndPin;
+    const char*     RXportAndPin;
     Pin*            txpin;
     Pin*            rxpin;
 
@@ -52,7 +52,7 @@ class SoftwareSerial
 
     public:
 
-    SoftwareSerial(std::string, std::string);
+    SoftwareSerial(const char*, const char*);
 
     void begin(int);
     void setSpeed(int);

@@ -2,6 +2,7 @@
 #define SOFTPWM_H
 
 #include <string>
+using namespace std;
 
 #include "modules/module.h"
 #include "drivers/pin/pin.h"
@@ -10,7 +11,7 @@ class SoftPWM : public Module
 {
 	private:
 
-		std::string pin;			// PWM output pin
+		const char* pin;			// PWM output pin
 		int pwmMax;						// maximum PWM output: 8 bit resolution (ie 0 to 255)
 		int pwmSP;						// PWM setpoint as a percentage of maxPwm
 		int SDaccumulator;		// Sigma-Delta accumulator
@@ -20,7 +21,7 @@ class SoftPWM : public Module
 
 	public:
 
-		SoftPWM(std::string);					// constructor
+		SoftPWM(const char*);					// constructor
 
 		void setMaxPwm(int pwmMax);
 		void setPwmSP(int newPwmSP);

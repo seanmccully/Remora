@@ -4,15 +4,11 @@
                 MODULE CONFIGURATION AND CREATION FROM JSON     
 ************************************************************************/
 
-void createBlink()
-{
-    const char* pin = module["Pin"];
-    int frequency = module["Frequency"];
+unique_ptr<Module> createBlink(const JsonObject& config) {
+    const char* pin = config["Pin"];
+    int frequency = config["Frequency"];
     
-    printf("Make Blink at pin %s\n", pin);
-        
-    Module* blink = new Blink(pin, PRU_SERVOFREQ, frequency);
-    servoThread->registerModule(blink);
+    return make_unique<Blink>(pin, PRU_SERVOFREQ, frequency);
 }
 
 
@@ -20,7 +16,7 @@ void createBlink()
                 METHOD DEFINITIONS
 ************************************************************************/
 
-Blink::Blink(std::string portAndPin, uint32_t threadFreq, uint32_t freq)
+Blink::Blink(const char* portAndPin, uint32_t threadFreq, uint32_t freq)
 {
 
 	this->periodCount = threadFreq / freq;

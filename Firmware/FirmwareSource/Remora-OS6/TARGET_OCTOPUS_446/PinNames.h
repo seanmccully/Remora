@@ -27,7 +27,6 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *******************************************************************************
  */
-
 #ifndef MBED_PINNAMES_H
 #define MBED_PINNAMES_H
 
@@ -46,180 +45,135 @@ typedef enum {
 } ALTx;
 
 typedef enum {
-    PA_0  = 0x00,
-    PA_0_ALT0 = PA_0 | ALT0,
-    PA_0_ALT1 = PA_0 | ALT1,
-    PA_1  = 0x01,
-    PA_1_ALT0 = PA_1 | ALT0,
-    PA_1_ALT1 = PA_1 | ALT1,
-    PA_2  = 0x02,
-    PA_2_ALT0 = PA_2 | ALT0,
-    PA_2_ALT1 = PA_2 | ALT1,
-    PA_3  = 0x03,
-    PA_3_ALT0 = PA_3 | ALT0,
-    PA_3_ALT1 = PA_3 | ALT1,
-    PA_4  = 0x04,
-    PA_4_ALT0 = PA_4 | ALT0,
-    PA_5  = 0x05,
-    PA_5_ALT0 = PA_5 | ALT0,
-    PA_6  = 0x06,
-    PA_6_ALT0 = PA_6 | ALT0,
-    PA_7  = 0x07,
-    PA_7_ALT0 = PA_7 | ALT0,
-    PA_7_ALT1 = PA_7 | ALT1,
-    PA_7_ALT2 = PA_7 | ALT2,
-    PA_8  = 0x08,
-    PA_9  = 0x09,
-    PA_10 = 0x0A,
-    PA_11 = 0x0B,
-    PA_12 = 0x0C,
-    PA_13 = 0x0D,
-    PA_14 = 0x0E,
-    PA_15 = 0x0F,
-    PA_15_ALT0 = PA_15 | ALT0,
+    // STM32 Pin Names
+    PA_0  = 0x00,  // DRIVER3_EN
+    PA_1  = 0x01,  // HEATER_BED
+    PA_2  = 0x02,  // HEATER_0
+    PA_3  = 0x03,  // HEATER_1
+    PA_4  = 0x04,  // SD_CS
+    PA_5  = 0x05,  // SPI1_SCK
+    PA_6  = 0x06,  // SPI1_MISO
+    PA_7  = 0x07,  // SPI1_MOSI
+    PA_8  = 0x08,  // FAN0
+    PA_9  = 0x09,  // UART1_TX
+    PA_10 = 0x0A,  // UART1_RX
+    PA_11 = 0x0B,  // USB_DM
+    PA_12 = 0x0C,  // USB_DP
+    PA_13 = 0x0D,  // SWDIO/WORK_LED
+    PA_14 = 0x0E,  // DRIVER7_DIR
+    PA_14_ALT = 0x0E,  // SWCLK
+    PA_15 = 0x0F,  // SPI3_NSS
+    PA_15_ALT = 0x0F,  // JTDI
 
-    PB_0  = 0x10,
-    PB_0_ALT0 = PB_0 | ALT0,
-    PB_0_ALT1 = PB_0 | ALT1,
-    PB_1  = 0x11,
-    PB_1_ALT0 = PB_1 | ALT0,
-    PB_1_ALT1 = PB_1 | ALT1,
-    PB_2  = 0x12,
-    PB_3  = 0x13,
-    PB_3_ALT0 = PB_3 | ALT0,
-    PB_4  = 0x14,
-    PB_4_ALT0 = PB_4 | ALT0,
-    PB_4_ALT1 = PB_4 | ALT1,
-    PB_5  = 0x15,
-    PB_5_ALT0 = PB_5 | ALT0,
-    PB_5_ALT1 = PB_5 | ALT1,
-    PB_6  = 0x16,
-    PB_7  = 0x17,
-    PB_8  = 0x18,
-    PB_8_ALT0 = PB_8 | ALT0,
-    PB_8_ALT1 = PB_8 | ALT1,
-    PB_9  = 0x19,
-    PB_9_ALT0 = PB_9 | ALT0,
-    PB_9_ALT1 = PB_9 | ALT1,
-    PB_10 = 0x1A,
-    PB_11 = 0x1B,
-    PB_12 = 0x1C,
-    PB_13 = 0x1D,
-    PB_14 = 0x1E,
-    PB_14_ALT0 = PB_14 | ALT0,
-    PB_14_ALT1 = PB_14 | ALT1,
-    PB_15 = 0x1F,
-    PB_15_ALT0 = PB_15 | ALT0,
-    PB_15_ALT1 = PB_15 | ALT1,
+    PB_0  = 0x10,  // STATUS_LED
+    PB_1  = 0x11,  // BTN_EN2
+    PB_2  = 0x12,  // BTN_EN1
+    PB_3  = 0x13,  // SPI3_SCK
+    PB_3_ALT  = 0x13,  // JTDO SWO
+    PB_4  = 0x14,  // SPI3_MISO
+    PB_4_ALT  = 0x14,  // JTRST
+    PB_5  = 0x15,  // SPI3_MOSI
+    PB_6  = 0x16,  // PROBE_PWM
+    PB_7  = 0x17,  // PROBE_SENSE
+    PB_8  = 0x18,  // I2C1_SCL
+    PB_9  = 0x19,  // I2C1_SDA
+    PB_10 = 0x1A,  // HEATER_2
+    PB_11 = 0x1B,  // HEATER_3
+    PB_12 = 0x1C,  // SPI2_NSS
+    PB_13 = 0x1D,  // SPI2_SCK
+    PB_14 = 0x1E,  // USB_HS_DM
+    PB_15 = 0x1F,  // USB_HS_DP
 
-    PC_0  = 0x20,
-    PC_0_ALT0 = PC_0 | ALT0,
-    PC_0_ALT1 = PC_0 | ALT1,
-    PC_1  = 0x21,
-    PC_1_ALT0 = PC_1 | ALT0,
-    PC_1_ALT1 = PC_1 | ALT1,
-    PC_2  = 0x22,
-    PC_2_ALT0 = PC_2 | ALT0,
-    PC_2_ALT1 = PC_2 | ALT1,
-    PC_3  = 0x23,
-    PC_3_ALT0 = PC_3 | ALT0,
-    PC_3_ALT1 = PC_3 | ALT1,
-    PC_4  = 0x24,
-    PC_4_ALT0 = PC_4 | ALT0,
-    PC_5  = 0x25,
-    PC_5_ALT0 = PC_5 | ALT0,
-    PC_6  = 0x26,
-    PC_6_ALT0 = PC_6 | ALT0,
-    PC_7  = 0x27,
-    PC_7_ALT0 = PC_7 | ALT0,
-    PC_8  = 0x28,
-    PC_8_ALT0 = PC_8 | ALT0,
-    PC_9  = 0x29,
-    PC_9_ALT0 = PC_9 | ALT0,
-    PC_10 = 0x2A,
-    PC_11 = 0x2B,
-    PC_12 = 0x2C,
-    PC_13 = 0x2D,
-    PC_14 = 0x2E,
-    PC_15 = 0x2F,
+    PC_0  = 0x20,  // PWR_DET
+    PC_1  = 0x21,  // DRIVER3_DIR
+    PC_2  = 0x22,  // SPI2_MISO
+    PC_3  = 0x23,  // SPI2_MOSI
+    PC_4  = 0x24,  // DRIVER0_CS
+    PC_5  = 0x25,  // PROBE_IN
+    PC_6  = 0x26,  // DRIVER2_CS
+    PC_7  = 0x27,  // DRIVER3_CS
+    PC_8  = 0x28,  // SDIO_D0
+    PC_9  = 0x29,  // SDIO_D1
+    PC_10 = 0x2A,  // SDIO_D2
+    PC_11 = 0x2B,  // SDIO_D3
+    PC_12 = 0x2C,  // SDIO_CK
+    PC_13 = 0x2D,  // DRIVER5_STEP
+    PC_14 = 0x2E,  // OSC32_IN
+    PC_15 = 0x2F,  // OSC32_OUT
 
-    PD_0  = 0x30,
-    PD_1  = 0x31,
-    PD_2  = 0x32,
-    PD_3  = 0x33,
-    PD_4  = 0x34,
-    PD_5  = 0x35,
-    PD_6  = 0x36,
-    PD_7  = 0x37,
-    PD_8  = 0x38,
-    PD_9  = 0x39,
-    PD_10 = 0x3A,
-    PD_11 = 0x3B,
-    PD_12 = 0x3C,
-    PD_13 = 0x3D,
-    PD_14 = 0x3E,
-    PD_15 = 0x3F,
+    PD_0  = 0x30,  // CAN1_RX
+    PD_1  = 0x31,  // CAN1_TX
+    PD_2  = 0x32,  // SDIO_CMD
+    PD_3  = 0x33,  // DRIVER7_CS
+    PD_4  = 0x34,  // DRIVER6_EN
+    PD_5  = 0x35,  // UART2_TX
+    PD_6  = 0x36,  // UART2_RX
+    PD_7  = 0x37,  // ESP_TX
+    PD_8  = 0x38,  // UART3_TX
+    PD_9  = 0x39,  // UART3_RX
+    PD_10 = 0x3A,  // ESP_RX
+    PD_11 = 0x3B,  // DRIVER1_CS
+    PD_12 = 0x3C,  // FAN2
+    PD_13 = 0x3D,  // FAN3
+    PD_14 = 0x3E,  // FAN4
+    PD_15 = 0x3F,  // FAN5
 
-    PE_0  = 0x40,
-    PE_1  = 0x41,
-    PE_2  = 0x42,
-    PE_3  = 0x43,
-    PE_4  = 0x44,
-    PE_5  = 0x45,
-    PE_6  = 0x46,
-    PE_7  = 0x47,
-    PE_8  = 0x48,
-    PE_9  = 0x49,
-    PE_10 = 0x4A,
-    PE_11 = 0x4B,
-    PE_12 = 0x4C,
-    PE_13 = 0x4D,
-    PE_14 = 0x4E,
-    PE_15 = 0x4F,
+    PE_0  = 0x40,  // DRIVER7_EN
+    PE_1  = 0x41,  // DRIVER6_CS
+    PE_2  = 0x42,  // DRIVER6_STEP
+    PE_3  = 0x43,  // DRIVER6_DIR
+    PE_4  = 0x44,  // DRIVER5_CS
+    PE_5  = 0x45,  // FAN1
+    PE_6  = 0x46,  // DRIVER7_STEP
+    PE_7  = 0x47,  // BTN_ENC
+    PE_8  = 0x48,  // BEEPER
+    PE_9  = 0x49,  // LCD_EN
+    PE_10 = 0x4A,  // LCD_RS
+    PE_11 = 0x4B,  // PS_ON
+    PE_12 = 0x4C,  // LCD_D4
+    PE_13 = 0x4D,  // LCD_D5
+    PE_14 = 0x4E,  // LCD_D6
+    PE_15 = 0x4F,  // LCD_D7
 
-    PF_0  = 0x50,
-    PF_1  = 0x51,
-    PF_2  = 0x52,
-    PF_3  = 0x53,
-    PF_4  = 0x54,
-    PF_5  = 0x55,
-    PF_6  = 0x56,
-    PF_7  = 0x57,
-    PF_8  = 0x58,
-    PF_9  = 0x59,
-    PF_10 = 0x5A,
-    PF_11 = 0x5B,
-    PF_12 = 0x5C,
-    PF_13 = 0x5D,
-    PF_14 = 0x5E,
-    PF_15 = 0x5F,
+    PF_0  = 0x50,  // DRIVER5_DIR
+    PF_1  = 0x51,  // DRIVER5_EN
+    PF_2  = 0x52,  // DRIVER4_CS
+    PF_3  = 0x53,  // THERM0
+    PF_4  = 0x54,  // THERM1
+    PF_5  = 0x55,  // THERM2
+    PF_6  = 0x56,  // THERM3
+    PF_7  = 0x57,  // THERM4
+    PF_8  = 0x58,  // MAX31865_CS
+    PF_9  = 0x59,  // DRIVER4_STEP
+    PF_10 = 0x5A,  // DRIVER4_DIR
+    PF_11 = 0x5B,  // DRIVER2_STEP
+    PF_12 = 0x5C,  // DRIVER0_DIR
+    PF_13 = 0x5D,  // DRIVER0_STEP
+    PF_14 = 0x5E,  // DRIVER0_EN
+    PF_15 = 0x5F,  // DRIVER1_EN
 
-    PG_0  = 0x60,
-    PG_1  = 0x61,
-    PG_2  = 0x62,
-    PG_3  = 0x63,
-    PG_4  = 0x64,
-    PG_5  = 0x65,
-    PG_6  = 0x66,
-    PG_7  = 0x67,
-    PG_8  = 0x68,
-    PG_9  = 0x69,
-    PG_10 = 0x6A,
-    PG_11 = 0x6B,
-    PG_12 = 0x6C,
-    PG_13 = 0x6D,
-    PG_14 = 0x6E,
-    PG_15 = 0x6F,
-
-    PH_0  = 0x70,
-    PH_1  = 0x71,
-    PH_2  = 0x72,
+    PG_0  = 0x60,  // DRIVER1_STEP
+    PG_1  = 0x61,  // DRIVER1_DIR
+    PG_2  = 0x62,  // DRIVER4_EN
+    PG_3  = 0x63,  // DRIVER2_DIR
+    PG_4  = 0x64,  // DRIVER3_STEP
+    PG_5  = 0x65,  // DRIVER2_EN
+    PG_6  = 0x66,  // X_MIN
+    PG_7  = 0x67,  // ESP_IO0
+    PG_8  = 0x68,  // ESP_RESET
+    PG_9  = 0x69,  // X_MAX
+    PG_10 = 0x6A,  // Y_MIN
+    PG_11 = 0x6B,  // Y_MAX
+    PG_12 = 0x6C,  // Z_MIN
+    PG_13 = 0x6D,  // Z_MAX
+    PG_14 = 0x6E,  // E_MIN
+    PG_15 = 0x6F,  // E_MAX
 
     // ADC internal channels
     ADC_TEMP = 0xF0,
     ADC_VREF = 0xF1,
     ADC_VBAT = 0xF2,
-
+//
     // Arduino connector namings
     A0          = PA_3,
     A1          = PC_0,
@@ -244,6 +198,7 @@ typedef enum {
     D14         = PB_9,
     D15         = PB_8,
 
+
     // STDIO for console print
 #ifdef MBED_CONF_TARGET_STDIO_UART_TX
     STDIO_UART_TX = MBED_CONF_TARGET_STDIO_UART_TX,
@@ -256,15 +211,6 @@ typedef enum {
     STDIO_UART_RX = PD_9,
 #endif
 
-    // Generic signals namings
-    LED1        = PB_0,
-    LED2        = PB_7,
-    LED3        = PB_14,
-    LED4        = LED1,
-    LED_RED     = LED3,
-    USER_BUTTON = PC_13,
-    // Standardized button names
-    BUTTON1 = USER_BUTTON,
     CONSOLE_TX   = STDIO_UART_TX, // Virtual Com Port
     CONSOLE_RX   = STDIO_UART_RX, // Virtual Com Port
     //USBTX       = STDIO_UART_TX, // Virtual Com Port
@@ -277,55 +223,6 @@ typedef enum {
     SPI_CS      = D10,
     PWM_OUT     = D9,
 
-    /**** USB FS pins ****/
-    USB_OTG_FS_DM = PA_11,
-    USB_OTG_FS_DP = PA_12,
-    USB_OTG_FS_ID = PA_10,
-    USB_OTG_FS_SOF = PA_8,
-    USB_OTG_FS_VBUS = PA_9,
-
-    /**** USB HS pins ****/
-    USB_OTG_HS_DM = PB_14,
-    USB_OTG_HS_DP = PB_15,
-    USB_OTG_HS_ID = PB_12,
-    USB_OTG_HS_SOF = PA_4,
-    USB_OTG_HS_ULPI_CK = PA_5,
-    USB_OTG_HS_ULPI_D0 = PA_3,
-    USB_OTG_HS_ULPI_D1 = PB_0,
-    USB_OTG_HS_ULPI_D2 = PB_1,
-    USB_OTG_HS_ULPI_D3 = PB_10,
-    USB_OTG_HS_ULPI_D4 = PB_2,
-    USB_OTG_HS_ULPI_D5 = PB_12,
-    USB_OTG_HS_ULPI_D6 = PB_13,
-    USB_OTG_HS_ULPI_D7 = PB_5,
-    USB_OTG_HS_ULPI_DIR = PC_2,
-    USB_OTG_HS_ULPI_NXT = PC_3,
-    USB_OTG_HS_ULPI_STP = PC_0,
-    USB_OTG_HS_VBUS = PB_13,
-
-    /**** OSCILLATOR pins ****/
-    RCC_OSC32_IN = PC_14,
-    RCC_OSC32_OUT = PC_15,
-    RCC_OSC_IN = PH_0,
-    RCC_OSC_OUT = PH_1,
-
-    /**** DEBUG pins ****/
-    SYS_JTCK_SWCLK = PA_14,
-    SYS_JTDI = PA_15,
-    SYS_JTDO_SWO = PB_3,
-    SYS_JTMS_SWDIO = PA_13,
-    SYS_JTRST = PB_4,
-    SYS_TRACECLK = PE_2,
-    SYS_TRACED0 = PE_3,
-    SYS_TRACED0_ALT0 = PC_8,
-    SYS_TRACED1 = PE_4,
-    SYS_TRACED1_ALT0 = PD_3,
-    SYS_TRACED2 = PE_5,
-    SYS_TRACED2_ALT0 = PG_13,
-    SYS_TRACED3 = PE_6,
-    SYS_TRACED3_ALT0 = PG_14,
-    SYS_WKUP0 = PA_0,
-    SYS_WKUP1 = PC_13,
 
     // Not connected
     NC = (int)0xFFFFFFFF

@@ -9,16 +9,16 @@
 #include "sensors/tempSensor.h"
 #include "sensors/thermistor/thermistor.h"
 
-#include "extern.h"
+#include "remora.h"
 
-void createTemperature(void);
+unique_ptr<Module> createTemperature(const JsonObject& config);
 
 class Temperature : public Module
 {
   private:
 
-    std::string sensorType;       // temperature sensor type
-    std::string pinSensor;	             // physical pins connections
+    const char* sensorType;       // temperature sensor type
+    const char* pinSensor;	             // physical pins connections
 
     volatile float* ptrFeedback;       	   // pointer where to put the feedback
 
@@ -31,7 +31,7 @@ class Temperature : public Module
 
   public:
 
-    Temperature(volatile float&, int32_t, int32_t, std::string, std::string, float, int, int);  // Thermistor type constructor
+    Temperature(volatile float&, int32_t, int32_t, const char*, const char*, float, int, int);  // Thermistor type constructor
 
     TempSensor* Sensor;
 

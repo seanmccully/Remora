@@ -7,9 +7,9 @@
 #include "modules/module.h"
 #include "drivers/pin/pin.h"
 
-#include "extern.h"
+#include "remora.h"
 
-void createBlink(void);
+unique_ptr<Module> createBlink(const JsonObject& config);
 
 class Blink : public Module
 {
@@ -24,7 +24,7 @@ class Blink : public Module
 
 	public:
 
-		Blink(std::string, uint32_t, uint32_t);
+		Blink(const char*, uint32_t, uint32_t);
 
 		virtual void update(void);
 		virtual void slowUpdate(void);

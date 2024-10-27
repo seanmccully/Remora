@@ -6,22 +6,22 @@
 #include "modules/module.h"
 #include "drivers/pin/pin.h"
 
-#include "extern.h"
+#include "remora.h"
 
-void createResetPin(void);
+unique_ptr<Module> createResetPin(const JsonObject& config);
 
 class ResetPin : public Module
 {
 	private:
 
 		volatile bool *ptrReset; 	// pointer to the data source
-		std::string portAndPin;
+		const char* portAndPin;
 
 		Pin *pin;
 
 	public:
 
-		ResetPin(volatile bool&, std::string);
+		ResetPin(volatile bool&, const char*);
 		virtual void update(void);
 		virtual void slowUpdate(void);
 };

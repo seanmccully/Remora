@@ -4,22 +4,14 @@
                 MODULE CONFIGURATION AND CREATION FROM JSON     
 ************************************************************************/
 
-void createRCServo()
-{
-    const char* comment = module["Comment"];
-    printf("%s\n",comment);
-
-    int sp = module["SP[i]"];
-    const char* pin = module["Servo Pin"];
-
-    printf("Make RC Servo at pin %s\n", pin);
-    
-    ptrSetPoint[sp] = &rxData.setPoint[sp];
+unique_ptr<Module> createRCServo(const JsonObject& config) {
+    const char* comment = config["Comment"];
+    int sp = config["SP[i]"];
+    const char* pin = config["Servo Pin"];
 
     // slow module with 10 hz update
     int updateHz = 10;
-    Module* rcservo = new RCServo(*ptrSetPoint[sp], pin, PRU_BASEFREQ, updateHz);
-    baseThread->registerModule(rcservo);
+    return make_unique<RCServo>(rxData.setPoint[sp], pin, PRU_BASEFREQ, updateHz);
 }
 
 /***********************************************************************
@@ -27,14 +19,12 @@ void createRCServo()
 ************************************************************************/
 
 
-RCServo::RCServo(volatile float &ptrPositionCmd, std::string pin, int32_t threadFreq, int32_t slowUpdateFreq) :
+RCServo::RCServo(volatile float &ptrPositionCmd, const char* pin, int32_t threadFreq, int32_t slowUpdateFreq) :
 	Module(threadFreq, slowUpdateFreq),
 	ptrPositionCmd(&ptrPositionCmd),
 	pin(pin),
 	threadFreq(threadFreq)
 {
-    printf("Creating RC servo\n");
-	//cout << "Creating RC servo at pin " << this->pin << endl;
 
 	this->servoPin = new Pin(this->pin, OUTPUT);			// create Pin
 

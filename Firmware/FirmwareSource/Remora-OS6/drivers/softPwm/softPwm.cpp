@@ -5,9 +5,8 @@
 #define confine(value, min, max) (((value) < (min))?(min):(((value) > (max))?(max):(value)))
 #define PID_PWM_MAX 256		// 8 bit resolution
 
-using namespace std;
 
-SoftPWM::SoftPWM(std::string pin) :
+SoftPWM::SoftPWM(const char* pin) :
 	pin(pin),
 	pwmMax(PID_PWM_MAX-1),
 	pwmSP(0),

@@ -1,7 +1,7 @@
 #include "thermistor.h"
 
 
-Thermistor::Thermistor(std::string pin, float beta, int r0, int t0) :
+Thermistor::Thermistor(const char* pin, float beta, int r0, int t0) :
 	pin(pin),
 	beta(beta),
 	r0(r0),

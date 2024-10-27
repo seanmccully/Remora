@@ -4,31 +4,24 @@
 /***********************************************************************
                 MODULE CONFIGURATION AND CREATION FROM JSON     
 ************************************************************************/
-void createQEI()
-{
-    const char* comment = module["Comment"];
-    printf("%s\n",comment);
+unique_ptr<Module> createQEI(const JsonObject& config) {
+    const char* comment = config["Comment"];
 
-    int pv = module["PV[i]"];
-    int dataBit = module["Data Bit"];
-    const char* index = module["Enable Index"];
+    int pv = config["PV[i]"];
+    int dataBit = config["Data Bit"];
+    const char* index = config["Enable Index"];
 
-    printf("Creating QEI, hardware quadrature encoder interface\n");
-
-    ptrProcessVariable[pv]  = &txData.processVariable[pv];
-    ptrInputs = &txData.inputs;
-
+    //ptrInputs = &txData.inputs;
+    std::unique_ptr<Module> qei;
     if (!strcmp(index,"True"))
     {
-        printf("  Encoder has index\n");
-        Module* qei = new QEI(*ptrProcessVariable[pv], *ptrInputs, dataBit);
-        baseThread->registerModule(qei);
+        return make_unique<QEI>(txData.processVariable[pv] , txData.inputs, dataBit);
     }
     else
     {
-        Module* qei = new QEI(*ptrProcessVariable[pv]);
-        baseThread->registerModule(qei);
+        return make_unique<QEI>(txData.processVariable[pv]);
     }
+    return qei;
 }
 
 /***********************************************************************

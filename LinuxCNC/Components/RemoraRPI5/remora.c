@@ -1,47 +1,46 @@
-/********************************************************************
-* Description:  remora.c
-*               This file, 'remora.c', is a HAL component that
-*               provides an SPI connection to an external STM32 running Remora PRU firmware.
-*               
-*               Modified for Raspberry Pi 5 to use Linux kernel SPI interface
-*               instead of bcm2835 direct hardware access.
-*
-* Author: Scott Alford
-* License: GPL Version 2
-*
-* Copyright (c) 2021-2024 All rights reserved.
-********************************************************************/
-
-#include "rtapi.h"          /* RTAPI realtime OS API */
-#include "rtapi_app.h"      /* RTAPI realtime module decls */
-#include "hal.h"            /* HAL public API decls */
-
-#include <math.h>
-#include <fcntl.h>
-#include <sys/ioctl.h>
-#include <linux/spi/spidev.h>
-#include <unistd.h>
-#include <stdio.h>
-#include <string.h>
-#include <stdlib.h>
-
 #include "remora.h"
 #include "remora_log.h"
 
-#define MODNAME "remora"
-#define PREFIX "remora"
 
-MODULE_AUTHOR("Scott Alford");
-MODULE_DESCRIPTION("Driver for Remora STM32 control board - Modified for RPi 5");
+MODULE_AUTHOR("Scott Alford - Modified for CAN");
+MODULE_DESCRIPTION("Driver for Remora CAN control board");
 MODULE_LICENSE("GPL v2");
 
+// Packed data structures for CAN transfer
+#pragma pack(push, 1)
+typedef union {
+    struct {
+        uint8_t txBuffer[CAN_BUFF_SIZE];
+    };
+    struct {
+        int32_t header;
+        int32_t jointFreqCmd[JOINTS];
+        float   setPoint[VARIABLES];
+        uint8_t jointEnable;
+        uint16_t outputs;
+        uint8_t spare0;
+    };
+} txData_t;
+
+typedef union {
+    struct {
+        uint8_t rxBuffer[CAN_BUFF_SIZE];
+    };
+    struct {
+        int32_t header;
+        int32_t jointFeedback[JOINTS];
+        float   processVariable[VARIABLES];
+        uint16_t inputs;
+    };
+} rxData_t;
+#pragma pack(pop)
 
 typedef struct {
-    hal_bit_t        *SPIenable;
-    hal_bit_t        *SPIreset;
+    hal_bit_t        *CANenable;
+    hal_bit_t        *CANreset;
     hal_bit_t        *PRUreset;
-    bool             SPIresetOld;
-    hal_bit_t        *SPIstatus;
+    bool             CANresetOld;
+    hal_bit_t        *CANstatus;
     hal_bit_t        *stepperEnable[JOINTS];
     int              pos_mode[JOINTS];
     hal_float_t      *pos_cmd[JOINTS];     /* pin: position command */
@@ -68,66 +67,6 @@ typedef struct {
     hal_bit_t        *inputs[DIGITAL_INPUTS];
 } data_t;
 
-static data_t *data;
-
-/* Packed structs for SPI transfer */
-#pragma pack(push, 1)
-
-typedef union {
-    struct {
-        uint8_t txBuffer[SPIBUFSIZE];
-    };
-    struct {
-        int32_t header;
-        int32_t jointFreqCmd[JOINTS];
-        float   setPoint[VARIABLES];
-        uint8_t jointEnable;
-        uint16_t outputs;
-        uint8_t spare0;
-    };
-} txData_t;
-
-typedef union {
-    struct {
-        uint8_t rxBuffer[SPIBUFSIZE];
-    };
-    struct {
-        int32_t header;
-        int32_t jointFeedback[JOINTS];
-        float   processVariable[VARIABLES];
-        uint16_t inputs;
-    };
-} rxData_t;
-
-#pragma pack(pop)
-
-static txData_t txData;
-static rxData_t rxData;
-
-
-// SPI settings
-static const char *spi_device = "/dev/spidev0.0";  /* Default SPI device */
-static int spi_fd = -1;
-static uint32_t spi_speed = 32000000;  // Default 32MHz
-static uint8_t spi_mode = SPI_MODE_0;
-static uint8_t spi_bits = 8;
-
-
-/* other globals */
-static int 			comp_id;				// component ID
-static const char 	*modname = MODNAME;
-static const char 	*prefix = PREFIX;
-static int 			num_chan = 0;			// number of step generators configured
-static long 		old_dtns;				// update_freq function period in nsec - (THIS IS RUNNING IN THE PI)
-static double		dt;						// update_freq period in seconds  - (THIS IS RUNNING IN THE PI)
-static double 		recip_dt;				// recprocal of period, avoids divides
-
-static int64_t 		accum[JOINTS] = { 0 };
-static int32_t 		old_count[JOINTS] = { 0 };
-static int32_t		accum_diff = 0;
-
-static int 			reset_gpio_pin = 25;				// RPI GPIO pin number used to force watchdog reset of the PRU 
-
 typedef enum CONTROL { POSITION, VELOCITY, INVALID } CONTROL;
 char *ctrl_type[JOINTS] = { "p" };
 RTAPI_MP_ARRAY_STRING(ctrl_type,JOINTS,"control type (pos or vel)");
@@ -142,122 +81,264 @@ RTAPI_MP_INT(SPI_clk_div, "SPI clock divider");
 int PRU_base_freq = -1;
 RTAPI_MP_INT(PRU_base_freq, "PRU base thread frequency");
 
+/* other globals */
+uint8_t spi_fd = 0;
+static txData_t txData;
+static rxData_t rxData;
+static int comp_id;
+static data_t *data;
+static int64_t old_dtns;
+static double dt;
+static double recip_dt;
+static int32_t old_count[JOINTS];
+static int64_t accum[JOINTS];
+static bool PRU_reset_state = false;
+static int can_socket = -1;
 
-/* Function prototypes */
-static int spi_init(void);
-static void spi_cleanup(void);
-static int spi_transfer(uint8_t *tx, uint8_t *rx, int len);
+static const char 	*modname = MODNAME;
+static const char 	*prefix = PREFIX;
+static long 		old_dtns;				// update_freq function period in nsec - (THIS IS RUNNING IN THE PI)
+static double		dt;						// update_freq period in seconds  - (THIS IS RUNNING IN THE PI)
+static double 		recip_dt;				// recprocal of period, avoids divides
+
+static int64_t 		accum[JOINTS] = { 0 };
+static int32_t 		old_count[JOINTS] = { 0 };
+
+// Function declarations
+static int can_init(void);
+static void can_cleanup(void);
+static int can_send(uint32_t can_id, uint8_t *data, uint8_t len);
+static int can_receive(uint32_t *can_id, uint8_t *data, uint8_t *len);
 static void update_freq(void *arg, long period);
-static void spi_write(void);
-static void spi_read(void);
+static void can_write(void *arg, long period);
+static void can_read(void *arg, long period);
+static void spi_cleanup(void);
 static int hal_err_handle(int _ret);
-static int parse_stepgen(void);
-static int validate_chip_type(void);
-static int remora_hal_init(void);
-static int remora_hal_pins(void);
-static int remora_hal_joints(void);
-static int remora_hal_joint_pins(void);
-static int hal_error(void);
-static int hal_export_functions(void);
 static CONTROL parse_ctrl_type(const char *ctrl);
-const char * concat(const char* pre,const char *post);
+void rtapi_app_exit(void);
 
+// CAN message creation helper
+static uint32_t make_can_id(uint8_t priority, uint8_t src, uint8_t dest, uint8_t type, uint8_t seq) {
+    return (((uint32_t)priority & 0x7) << 26) |
+           (((uint32_t)src & 0x1F) << 21) |
+           (((uint32_t)dest & 0x1F) << 16) |
+           (((uint32_t)type & 0xFF) << 8) |
+           ((uint32_t)seq & 0xFF);
+}
 
-int rtapi_app_main(void) {
-    int retval;
-    int n;
-    retval = parse_stepgen();
-    retval = validate_chip_type();
-    /* Initialize the SPI interface */
-    if (spi_init() < 0) {
-        log_error( "%s: ERROR: Failed to initialize SPI\n", modname);
+static int can_init(void) {
+    can_socket = socket(PF_CAN, SOCK_RAW, CAN_RAW);
+    if (can_socket < 0) {
+        log_error("%s: ERROR: Cannot create CAN socket: %s\n", MODNAME, strerror(errno));
         return -1;
     }
 
-    /* Connect to the HAL */
-    retval = remora_hal_init();
+    struct ifreq ifr;
+    strcpy(ifr.ifr_name, DEFAULT_CAN_INTERFACE);
+    if (ioctl(can_socket, SIOCGIFINDEX, &ifr) < 0) {
+        log_error("%s: ERROR: Cannot get CAN interface index: %s\n", MODNAME, strerror(errno));
+        close(can_socket);
+        return -1;
+    }
 
-    /* Export pins and parameters */
-    retval = remora_hal_pins();
-    retval = remora_hal_joint_pins();
-    retval = remora_hal_joints();
+    struct sockaddr_can addr;
+    addr.can_family = AF_CAN;
+    addr.can_ifindex = ifr.ifr_ifindex;
+    
+    if (bind(can_socket, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
+        log_error("%s: ERROR: Cannot bind CAN socket: %s\n", MODNAME, strerror(errno));
+        close(can_socket);
+        return -1;
+    }
 
-    /* ... Rest of pin/parameter exports ... */
-
-    /* Export functions */
-    retval = hal_export_functions();
-    hal_ready(comp_id);
     return 0;
-
 }
 
-int parse_stepgen(void) {
+static int can_send(uint32_t can_id, uint8_t *data, uint8_t len) {
+    struct can_frame frame = {0};
+    frame.can_id = can_id;
+    frame.can_dlc = len;
+    memcpy(frame.data, data, len);
+    
+    int result = write(can_socket, &frame, sizeof(struct can_frame));
+    if (result != sizeof(struct can_frame)) {
+        log_error("%s: ERROR: CAN write failed: %s\n", MODNAME, strerror(errno));
+        return -1;
+    }
+    return 0;
+}
 
-	// parse stepgen control type
-	for (int n = 0; n < JOINTS; n++) {
-        if(parse_ctrl_type(ctrl_type[n]) == INVALID) {
-          rtapi_print_msg(RTAPI_MSG_ERR,
-              "STEPGEN: ERROR: bad control type '%s' for axis %i (must be 'p' or 'v')\n",
-              ctrl_type[n], n);
-          return -1;
+static int can_receive(uint32_t *can_id, uint8_t *data, uint8_t *len) {
+    struct can_frame frame;
+    int result = read(can_socket, &frame, sizeof(struct can_frame));
+    
+    if (result < 0) {
+        if (errno != EAGAIN) {
+            log_error("%s: ERROR: CAN read failed: %s\n", MODNAME, strerror(errno));
+        }
+        return -1;
+    }
+    
+    *can_id = frame.can_id;
+    *len = frame.can_dlc;
+    memcpy(data, frame.data, frame.can_dlc);
+    return 0;
+}
+
+static void can_write(void *arg, long period) {
+    data_t *data = (data_t *)arg;
+    uint8_t joint_enables = 0;
+
+    if (!*(data->CANenable) || !*(data->CANstatus)) {
+        return;
+    }
+
+    // Send joint commands and collect enables
+    for (int i = 0; i < JOINTS; i++) {
+        uint32_t can_id = make_can_id(PRIO_MEDIUM, NODE_CONTROLLER, NODE_REMORA, MSG_JOINT_CMD, i);
+        float freq = data->freq[i];
+        can_send(can_id, (uint8_t*)&freq, sizeof(float));
+        
+        if (*(data->stepperEnable[i])) {
+            joint_enables |= (1 << i);
+        }
+    }
+
+    // Send setpoints
+    for (int i = 0; i < VARIABLES; i++) {
+        uint32_t can_id = make_can_id(PRIO_MEDIUM, NODE_CONTROLLER, NODE_REMORA, MSG_SETPOINT, i);
+        float setpoint = *(data->setPoint[i]);
+        can_send(can_id, (uint8_t*)&setpoint, sizeof(float));
+    }
+
+    // Send digital outputs
+    for (int i = 0; i < (DIGITAL_OUTPUTS + 7) / 8; i++) {
+        uint32_t can_id = make_can_id(PRIO_LOW, NODE_CONTROLLER, NODE_REMORA, MSG_DIG_OUT, i);
+        uint8_t out_byte = 0;
+        for (int bit = 0; bit < 8 && (i * 8 + bit) < DIGITAL_OUTPUTS; bit++) {
+            if (*(data->outputs[i * 8 + bit])) {
+                out_byte |= (1 << bit);
+            }
+        }
+        can_send(can_id, &out_byte, 1);
+    }
+
+    // Send enables status
+    uint32_t enable_id = make_can_id(PRIO_HIGH, NODE_CONTROLLER, NODE_REMORA, MSG_STATUS, 0);
+    can_send(enable_id, &joint_enables, 1);
+}
+
+static void can_read(void *arg, long period) {
+    data_t *data = (data_t *)arg;
+    uint32_t can_id;
+    uint8_t rx_data[8];
+    uint8_t rx_len;
+    
+
+    while (can_receive(&can_id, rx_data, &rx_len) == 0) {
+        uint8_t msg_type = (can_id >> 8) & 0xFF;
+        uint8_t index = can_id & 0xFF;
+
+        switch (msg_type) {
+            case MSG_JOINT_FB: {
+                *(data->CANstatus) = true;
+                if (index < JOINTS) {
+                    int32_t counts;
+                    memcpy(&counts, rx_data, sizeof(int32_t));
+                    
+                    // Update position feedback
+                    int32_t diff = counts - old_count[index];
+                    old_count[index] = counts;
+                    accum[index] += diff;
+                    
+                    *(data->count[index]) = counts;
+                    if (data->pos_scale[index] != 0.0) {
+                        *(data->pos_fb[index]) = counts / data->pos_scale[index];
+                    }
+                }
+                break;
+            }
+
+            case MSG_PV_FB: {
+                *(data->CANstatus) = true;
+                if (index < VARIABLES && rx_len == sizeof(float)) {
+                    float value;
+                    memcpy(&value, rx_data, sizeof(float));
+                    *(data->processVariable[index]) = value;
+                }
+                break;
+            }
+
+            case MSG_DIG_IN: {
+                *(data->CANstatus) = true;
+                int base_input = index * 8;
+                for (int i = 0; i < 8 && base_input + i < DIGITAL_INPUTS; i++) {
+                    *(data->inputs[base_input + i]) = (rx_data[0] & (1 << i)) ? 1 : 0;
+                }
+                break;
+            }
+
+            case MSG_STATUS: {
+                *(data->CANstatus) = (rx_data[0] != 0);
+                break;
+            }
         }
     }
 }
 
-int validate_chip_type(void) {
-    // Validate chip type
-    if (!strcmp(chip_type, "LPC") || !strcmp(chip_type, "lpc")) {
-        log_info("PRU: Chip type set to LPC\n");
-        chip = LPC;
-    }
-    else if (!strcmp(chip_type, "STM") || !strcmp(chip_type, "stm")) {
-        log_info("PRU: Chip type set to STM\n");
-        chip = STM;
-    }
-    else {
-        log_error("ERROR: PRU chip type (must be 'LPC' or 'STM')\n");
+int rtapi_app_main(void) {
+    int retval;
+
+    comp_id = hal_init(MODNAME);
+    if (comp_id < 0) {
+        log_error("%s: ERROR: hal_init() failed\n", MODNAME);
         return -1;
     }
+
+    // Allocate HAL shared memory
+    data = hal_malloc(sizeof(data_t));
+    if (!data) {
+        log_error("%s: ERROR: hal_malloc() failed\n", MODNAME);
+        hal_exit(comp_id);
+        return -1;
+    }
+
+    // Initialize CAN interface
+    if (can_init() < 0) {
+        log_error("%s: ERROR: CAN initialization failed\n", MODNAME);
+        hal_exit(comp_id);
+        return -1;
+    }
+
+    // Export HAL pins and parameters
+    retval = remora_hal_pins();
+    if (retval < 0) goto error;
+    
+    retval = remora_hal_joint_pins();
+    if (retval < 0) goto error;
+    
+    retval = remora_hal_joints();
+    if (retval < 0) goto error;
+
+    // Export HAL functions
+    retval = hal_export_funct("remora.update-freq", update_freq, data, 1, 0, comp_id);
+    if (retval < 0) goto error;
+
+    retval = hal_export_funct("remora.write", can_write, data, 0, 0, comp_id);
+    if (retval < 0) goto error;
+
+    retval = hal_export_funct("remora.read", can_read, data, 1, 0, comp_id);
+    if (retval < 0) goto error;
+
+    hal_ready(comp_id);
     return 0;
-}
 
-const char * concat(const char* pre,const char *post) {
-
-    int pre_l = strlen(pre);
-    int post_l = strlen(post);
-    char* _str = malloc(pre_l + post_l);
-    memcpy(_str,pre, pre_l);
-    memcpy(_str,post, post_l+1);
-    return _str;
-}
-int hal_export_functions(void) {
-
-    int retval = hal_export_funct("remora.update-freq", update_freq, data, 1, 0, comp_id);
-    if (retval < 0) {
-        log_error( "%s: ERROR: update function export failed\n", modname);
-        hal_exit(comp_id);
-        return -1;
-    }
-
-    //rtapi_snprintf(name, strlen(name), "%s.write", prefix);
-    retval = hal_export_funct("remora.write", spi_write, 0, 0, 0, comp_id);
-    if (retval < 0) {
-        log_error( "%s: ERROR: write function export failed\n", modname);
-        hal_exit(comp_id);
-        return -1;
-    }
-
-    //rtapi_snprintf(name, sizeof(name), "%s.read", prefix);
-    retval = hal_export_funct("remora.read", spi_read, data, 1, 0, comp_id);
-    if (retval < 0) {
-        log_error( "%s: ERROR: read function export failed\n", modname);
-        hal_exit(comp_id);
-        return -1;
-    }
-
-    log_info("%s: installed driver\n", modname);
+error:
+    can_cleanup();
+    hal_exit(comp_id);
     return retval;
 }
+
 
 int remora_hal_init(void) {
 
@@ -279,21 +360,18 @@ int remora_hal_init(void) {
 int remora_hal_pins(void) {
 
     // Export HAL pins and parameters
-    int retval = hal_pin_bit_newf(HAL_IN, &(data->SPIenable), comp_id, "%s.SPI-enable", prefix);
+    int retval = hal_pin_bit_newf(HAL_IN, &(data->CANenable), comp_id, "%s.CAN-enable", prefix);
     if (retval != 0) return retval;
     
-    retval = hal_pin_bit_newf(HAL_IN, &(data->SPIreset), comp_id, "%s.SPI-reset", prefix);
+    retval = hal_pin_bit_newf(HAL_IN, &(data->CANreset), comp_id, "%s.CAN-reset", prefix);
     if (retval != 0) return retval;
 
-    retval = hal_pin_bit_newf(HAL_OUT, &(data->SPIstatus), comp_id, "%s.SPI-status", prefix);
+    retval = hal_pin_bit_newf(HAL_OUT, &(data->CANstatus), comp_id, "%s.CAN-status", prefix);
     if (retval != 0) return retval;
 
-    return 0;
-    // Configure PRU reset pin
-    //gpioSetMode(reset_gpio_pin, PI_OUTPUT);
-    //retval = hal_pin_bit_newf(HAL_IN, &(data->PRUreset), comp_id, "%s.PRU-reset", prefix);
-    //if (retval != 0) return retval;
-    //return retval;
+    retval = hal_pin_bit_newf(HAL_IN, &(data->PRUreset), comp_id, "%s.PRU-reset", prefix);
+    if (retval != 0) return retval;
+    return retval;
 }
 
 int remora_hal_joint_pins(void) {
@@ -412,52 +490,6 @@ int remora_hal_joints(void) {
     return retval;
 }
 
-
-void rtapi_app_exit(void) {
-    spi_cleanup();
-    hal_exit(comp_id);
-}
-
-static int spi_init(void) {
-    int ret;
-    uint8_t mode = SPI_MODE_0;
-    uint8_t bits = 8;
-    uint32_t speed = 15000000; // 15MHz - adjust as needed
-
-    spi_fd = open(spi_device, O_RDWR);
-    if (spi_fd < 0) {
-        log_error( "%s: ERROR: Can't open device %s: %s\n",
-                       modname, spi_device, strerror(errno));
-        return -1;
-    }
-
-    /* SPI mode */
-    ret = ioctl(spi_fd, SPI_IOC_WR_MODE, &mode);
-    if (ret < 0) {
-        log_error( "%s: ERROR: Can't set SPI mode: %s\n",
-                       modname, strerror(errno));
-        return -1;
-    }
-
-    /* Bits per word */
-    ret = ioctl(spi_fd, SPI_IOC_WR_BITS_PER_WORD, &bits);
-    if (ret < 0) {
-        log_error( "%s: ERROR: Can't set bits per word: %s\n",
-                       modname, strerror(errno));
-        return -1;
-    }
-
-    /* Max speed Hz */
-    ret = ioctl(spi_fd, SPI_IOC_WR_MAX_SPEED_HZ, &speed);
-    if (ret < 0) {
-        log_error( "%s: ERROR: Can't set max speed Hz: %s\n",
-                       modname, strerror(errno));
-        return -1;
-    }
-
-    return 0;
-}
-
 static void spi_cleanup(void) {
     if (spi_fd >= 0) {
         close(spi_fd);
@@ -465,18 +497,6 @@ static void spi_cleanup(void) {
     }
 }
 
-static int spi_transfer(uint8_t *tx, uint8_t *rx, int len) {
-    struct spi_ioc_transfer tr = {
-        .tx_buf = (unsigned long)tx,
-        .rx_buf = (unsigned long)rx,
-        .len = len,
-        .delay_usecs = 0,
-        .speed_hz = 15000000,
-        .bits_per_word = 8,
-    };
-
-    return ioctl(spi_fd, SPI_IOC_MESSAGE(1), &tr);
-}
 
 /* Update frequency function - same as original */
 static void update_freq(void *arg, long period)
@@ -687,105 +707,6 @@ static void update_freq(void *arg, long period)
 
 }
 
-/* SPI write function using Linux SPI interface */
-static void spi_write() {
-    int i=0;
-    /* Data header */
-    txData.header = PRU_WRITE;
-
-    /* Joint frequency commands */
-    for (i = 0; i < JOINTS; i++) {
-        txData.jointFreqCmd[i] = data->freq[i];
-    }
-
-    /* Joint enable bits */
-    for (i = 0; i < JOINTS; i++) {
-        if (*(data->stepperEnable[i]) == 1) {
-            txData.jointEnable |= (1 << i);
-        } else {
-            txData.jointEnable &= ~(1 << i);
-        }
-    }
-
-    /* Set points */
-    for (i = 0; i < VARIABLES; i++) {
-        txData.setPoint[i] = *(data->setPoint[i]);
-    }
-
-    /* Outputs */
-    for (i = 0; i < DIGITAL_OUTPUTS; i++) {
-        if (*(data->outputs[i]) == 1) {
-            txData.outputs |= (1 << i);
-        } else {
-            txData.outputs &= ~(1 << i);
-        }
-    }
-
-    if (*(data->SPIstatus)) {
-        spi_transfer(txData.txBuffer, rxData.rxBuffer, SPIBUFSIZE);
-    }
-}
-
-/* SPI read function using Linux SPI interface */
-static void spi_read() {
-    int i;
-    double curr_pos;
-
-    /* Data header */
-    txData.header = PRU_READ;
-
-    if (*(data->SPIenable)) {
-        if ((*(data->SPIreset) && !(data->SPIresetOld)) || *(data->SPIstatus)) {
-            /* Transfer data */
-            spi_transfer(txData.txBuffer, rxData.rxBuffer, SPIBUFSIZE);
-
-            switch (rxData.header) {
-                case PRU_DATA:
-                    *(data->SPIstatus) = 1;
-
-                    /* Process received data */
-                    for (i = 0; i < JOINTS; i++) {
-                        /* Position calculations */
-                        accum_diff = rxData.jointFeedback[i] - old_count[i];
-                        old_count[i] = rxData.jointFeedback[i];
-                        accum[i] += accum_diff;
-
-                        *(data->count[i]) = accum[i] >> STEPBIT;
-
-                        data->scale_recip[i] = (1.0 / STEP_MASK) / data->pos_scale[i];
-                        curr_pos = (double)(accum[i]-STEP_OFFSET) * (1.0 / STEP_MASK);
-                        *(data->pos_fb[i]) = (float)((curr_pos+0.5) / data->pos_scale[i]);
-                    }
-
-                    /* Process variables */
-                    for (i = 0; i < VARIABLES; i++) {
-                        *(data->processVariable[i]) = rxData.processVariable[i];
-                    }
-
-                    /* Process inputs */
-                    for (i = 0; i < DIGITAL_INPUTS; i++) {
-                        *(data->inputs[i]) = (rxData.inputs & (1 << i)) ? 1 : 0;
-                    }
-                    break;
-
-                case PRU_ESTOP:
-                    *(data->SPIstatus) = 0;
-                    log_error( "An E-stop is active\n");
-                    break;
-
-                default:
-                    *(data->SPIstatus) = 0;
-                    log_warning("Bad SPI payload = %x\n", rxData.header);
-                    break;
-            }
-        }
-    } else {
-        *(data->SPIstatus) = 0;
-    }
-
-    data->SPIresetOld = *(data->SPIreset);
-}
-
 int hal_error(void) {
 		hal_exit(comp_id);
 		return -1;
@@ -804,3 +725,16 @@ static CONTROL parse_ctrl_type(const char *ctrl)
     if(*ctrl == 'v' || *ctrl == 'V') return VELOCITY;
     return INVALID;
 }
+
+void rtapi_app_exit(void) {
+    can_cleanup();
+    hal_exit(comp_id);
+}
+
+static void can_cleanup(void) {
+    if (can_socket >= 0) {
+        close(can_socket);
+        can_socket = -1;
+    }
+}
+

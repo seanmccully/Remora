@@ -1,0 +1,45 @@
+#! armclang -E --target=arm-arm-none-eabi -x c -mcpu=cortex-m7
+
+#include "../cmsis_nvic.h"
+
+LR_IROM1  MBED_APP_START  MBED_APP_SIZE  {
+
+  ER_IROM1  MBED_APP_START  MBED_APP_SIZE  {
+    *.o (RESET, +First)
+    *(InRoot$$Sections)
+    .ANY (+RO)
+  }
+
+  RW_m_crash_data MBED_CRASH_REPORT_RAM_START EMPTY MBED_CRASH_REPORT_RAM_SIZE { 
+  }
+
+  RW_IRAM1  (MBED_RAM1_START)  {  
+    .ANY (+RW +ZI)
+  }  
+
+  ARM_LIB_HEAP  AlignExpr(+0, 16)  EMPTY  (MBED_RAM1_START + MBED_RAM1_SIZE - MBED_CONF_TARGET_BOOT_STACK_SIZE - AlignExpr(ImageLimit(RW_IRAM1), 16))  { 
+  }
+
+  ARM_LIB_STACK  (MBED_RAM1_START + MBED_RAM1_SIZE)  EMPTY  -MBED_CONF_TARGET_BOOT_STACK_SIZE  { 
+  }
+
+  RW_DMARxDscrTab 0x30000000 0x60 {
+    *(.RxDecripSection)
+  }
+
+  RW_DMATxDscrTab 0x30000100 0x140 {
+    *(.TxDecripSection)
+  }
+
+  RW_Tx_Buff 0x30000300 0x1800 {
+    *(.TxArraySection)
+  }
+
+  RW_Rx_Buff 0x30002000 0x1800 {
+    *(.RxArraySection)
+  }
+
+  RW_Eth_Ram 0x30004000 0x4000 {
+    *(.ethusbram)
+  }
+}

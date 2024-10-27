@@ -3,23 +3,20 @@
 /***********************************************************************
                 MODULE CONFIGURATION AND CREATION FROM JSON     
 ************************************************************************/
-void createMCP4451()
-{
-    printf("Make MCP4451 Digipot object\n");
+unique_ptr<Module> createMCP4451(const JsonObject& config) {
+    const char* sda = config["I2C SDA pin"];
+    const char* scl = config["I2C SCL pin"];
+    int address = config["I2C address"];
+    float maxCurrent = config["Max current"];
+    float factor = config["Factor"];
+    float c0 = config["Current 0"];
+    float c1 = config["Current 1"];
+    float c2 = config["Current 2"];
+    float c3 = config["Current 3"];
 
-    const char* sda = module["I2C SDA pin"];
-    const char* scl = module["I2C SCL pin"];
-    int address = module["I2C address"];
-    float maxCurrent = module["Max current"];
-    float factor = module["Factor"];
-    float c0 = module["Current 0"];
-    float c1 = module["Current 1"];
-    float c2 = module["Current 2"];
-    float c3 = module["Current 3"];
-
-    Module* digipot = new MCP4451(sda, scl, address, maxCurrent, factor, c0, c1, c2, c3);
+    std::unique_ptr<Module> digipot = make_unique<MCP4451>(sda, scl, address, maxCurrent, factor, c0, c1, c2, c3);
     digipot->update();
-    delete digipot;
+    return digipot;
 }
 
 
@@ -28,7 +25,7 @@ void createMCP4451()
 ************************************************************************/
 
 
-MCP4451::MCP4451(std::string sda, std::string scl, char address, float maxCurrent, float factor, float c0, float c1, float c2, float c3) :
+MCP4451::MCP4451(const char* sda, const char* scl, char address, float maxCurrent, float factor, float c0, float c1, float c2, float c3) :
   sda(sda),
   scl(scl),
   address(address),
