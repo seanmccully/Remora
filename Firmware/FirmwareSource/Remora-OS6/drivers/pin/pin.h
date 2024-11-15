@@ -39,7 +39,7 @@ class Pin
         uint8_t             modifier;
         uint8_t             portIndex;
         uint16_t            pinNumber;
-        uint16_t            pin;
+        uint32_t            pin;
         uint32_t            mode;
         uint32_t            pull;
         uint32_t            speed;
@@ -52,9 +52,12 @@ class Pin
         Pin(const char*, int, int);
 
         PwmOut* hardware_pwm();
+				GPIO_TypeDef* getBus(void);
+				uint32_t getPin(void);
 
         void configPin();
         void initPin();
+        void setDir();
         void setAsOutput();
         void setAsInput();
         void pull_none();

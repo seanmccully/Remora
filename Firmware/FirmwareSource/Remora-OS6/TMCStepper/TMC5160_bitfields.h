@@ -5,7 +5,7 @@ namespace TMC5160_n {
 
   struct STATUS_t {
     union {
-      uint32_t sr : 18;
+      uint32_t sr;
       struct {
           uint8_t
           reset_flag       : 1,
@@ -23,7 +23,7 @@ namespace TMC5160_n {
   struct GCONF_t {
     constexpr static uint8_t address = 0x00;
     union {
-      uint32_t sr : 18;
+      uint32_t sr;
       struct {
           uint32_t  recalibrate       : 1,
                     faststandstill    : 1,
@@ -46,6 +46,12 @@ namespace TMC5160_n {
                     reserved          : 14; // Reserved bits
       };
     };
+	        // Constructors
+        GCONF_t() {  }  // Default value from datasheet
+        GCONF_t(uint32_t val) { sr = val; }
+
+        // Conversion operator
+        operator uint32_t() const { return sr; }
   };
 
   struct GSTAT_t {
@@ -63,7 +69,7 @@ namespace TMC5160_n {
   struct IFCNT_t {
     constexpr static uint8_t address = 0x02;
     union {
-      uint8_t sr : 3;
+      uint32_t sr;
       struct {
           uint32_t count       : 8,
                    reserved    : 24; // Reserved bits
@@ -230,7 +236,7 @@ namespace TMC5160_n {
   struct IHOLD_IRUN_t {
     constexpr static uint8_t address = 0x10;
     union {
-      uint8_t sr : 8;
+      uint32_t sr;
       struct {
           uint32_t ihold      : 5,
                    reserved_1 : 3, // Reserved bits
@@ -245,7 +251,7 @@ namespace TMC5160_n {
   struct TPOWERDOWN_t {
     constexpr static uint8_t address = 0x11;
     union {
-      uint8_t sr : 8;
+      uint32_t sr;
       struct {
           uint32_t tstep    : 8,
                    reserved : 24; // Reserved bits
@@ -257,7 +263,7 @@ namespace TMC5160_n {
   struct TSTEP_t  {
     constexpr static uint8_t address = 0x12;
     union {
-      uint8_t sr : 8;
+      uint32_t sr;
       struct {
           uint32_t tstep    : 20,
                    reserved : 12; // Reserved bits
@@ -268,7 +274,7 @@ namespace TMC5160_n {
   struct TPWMTHRS_t {
     constexpr static uint8_t address = 0x13;
     union {
-      uint32_t sr : 20;
+      uint32_t sr;
       struct {
           uint32_t tpwmthrs : 20,
                    reserved : 12; // Reserved bits
@@ -279,7 +285,7 @@ namespace TMC5160_n {
   struct TCOOLTHRS_t {
     constexpr static uint8_t address = 0x14;
     union {
-      uint32_t sr : 20;
+      uint32_t sr;
       struct {
           uint32_t tcoolthrs : 20,
                    reserved  : 12; // Reserved bits
@@ -290,7 +296,7 @@ namespace TMC5160_n {
   struct THIGH_t {
     constexpr static uint8_t address = 0x15;
     union {
-      uint32_t sr : 20;
+      uint32_t sr;
       struct {
           uint32_t thigh : 20,
                    reserved : 12; // Reserved bits
@@ -301,7 +307,7 @@ namespace TMC5160_n {
   struct VDCMIN_t {
     constexpr static uint8_t address = 0x33;
     union {
-      uint32_t sr : 23;
+      uint32_t sr;
       struct {
           uint32_t vdcmin   : 23,
                    reserved : 9; // Reserved bits
@@ -313,7 +319,7 @@ namespace TMC5160_n {
   struct MSLUTn_t {
     constexpr static uint8_t address = 0x60;
     union {
-      uint32_t sr : 32;
+      uint32_t sr;
       struct {
           uint32_t mte : 32;
       };
@@ -380,13 +386,13 @@ namespace TMC5160_n {
   struct CHOPCONF_t {
     constexpr static uint8_t address = 0x6C;
     union {
-      uint32_t sr : 32;
+      uint32_t sr;
       struct {
           uint8_t  toff       : 4,
                    hstrt      : 3,
-                   hend       : 4,
-                   fd3        : 1;
-          bool     disfdcc    : 1,
+                   hend       : 4;
+          bool     fd3        : 1,
+                   disfdcc    : 1,
                    reserved_1 : 1, // Reserved bit
                    chm        : 1;
           uint8_t  tbl        : 2,
@@ -401,12 +407,17 @@ namespace TMC5160_n {
                    diss2vs    : 1;
       };
     };
+        // Constructors
+        CHOPCONF_t() { sr = 0x00000000; }  // Default value from datasheet
+        CHOPCONF_t(uint32_t val) { sr = val; }
+        // Conversion operator
+        operator uint32_t() const { return sr; }
   };
 
   struct COOLCONF_t {
     constexpr static uint8_t address = 0x6D;
     union {
-      uint16_t sr : 10;
+      uint32_t sr;
       struct {
           uint32_t semin      : 4,
                    reserved_1 : 1, // Reserved bit
@@ -422,6 +433,12 @@ namespace TMC5160_n {
                    reserved_5 : 7; // Reserved bits
       };
     };
+
+        // Constructors
+        COOLCONF_t() { sr = 0x00000000; }  // Default value from datasheet
+        COOLCONF_t(uint32_t val) { sr = val; }
+        // Conversion operator
+        operator uint32_t() const { return sr; }
   };
 
   // DCCTRL : W
@@ -462,12 +479,17 @@ namespace TMC5160_n {
                    stst       : 1;
       };
     };
+    // Constructors
+    DRV_STATUS_t() { sr = 0x00000000; }
+    DRV_STATUS_t(uint32_t val) { sr = val; }
+    // Conversion operator
+    operator uint32_t() const { return sr; }
   };
 
   struct PWMCONF_t {
     constexpr static uint8_t address = 0x70;
     union {
-      uint32_t sr : 22;
+      uint32_t sr;
       struct {
           uint32_t pwm_ofs     : 8,
                    pwm_grad    : 8,
@@ -480,17 +502,22 @@ namespace TMC5160_n {
                    pwm_lim     : 4;
       };
     };
+    // Constructors
+    PWMCONF_t() { sr = 0x00000000; }
+    PWMCONF_t(uint32_t val) { sr = val; }
+    // Conversion operator
+    operator uint32_t() const { return sr; }
   };
 
   struct PWM_SCALE_t {
     constexpr static uint8_t address = 0x71;
     union {
-      uint32_t sr : 22;
+      uint32_t sr;
       struct {
-          uint8_t pwm_scale_sum   : 8,
-                   reserved_1     : 8, // Reserved bits
+          uint32_t pwm_scale_sum    : 8,
+                   reserved_1      : 8, // Reserved bits
                    pwm_scale_auto  : 9,
-                   reserved_2     : 7; // Reserved bits
+                   reserved_2      : 7; // Reserved bits
       };
     };
   };
@@ -498,7 +525,7 @@ namespace TMC5160_n {
   struct PWM_AUTO_t {
     constexpr static uint8_t address = 0x72;
     union {
-      uint32_t sr : 24;
+      uint32_t sr;
       struct {
           uint8_t pwm_ofs_auto  : 8,
                    reserved_1   : 8, // Reserved bits
@@ -511,26 +538,10 @@ namespace TMC5160_n {
   struct LOST_STEPS_t {
     constexpr static uint8_t address = 0x73;
     union {
-      uint32_t sr : 24;
+      uint32_t sr;
       struct {
           uint32_t lost_steps : 20,
                    reserved   : 12; // Reserved bits
-      };
-    };
-  };
-
-  struct DRIVER_STATUS_t {
-    union {
-      uint8_t sr : 24;
-      struct {
-          uint8_t reset_flag       : 1,
-                  driver_error     : 1,
-                  sg2              : 1,
-                  standstill       : 1,
-                  velocity_reached : 1,
-                  position_reached : 1,
-                  status_stop_l    : 1,
-                  status_stop_r    : 1;
       };
     };
   };
@@ -561,7 +572,7 @@ namespace TMC5160_n {
       VDCMIN_t          vdcmin;
 
       void  *cs_pin;
-      /* 
+      /*
        xdirect;
        mslut[8];
        mslutsel;
@@ -575,9 +586,9 @@ namespace TMC5160_n {
       CHOPCONF_t        chopconf;
       COOLCONF_t        coolconf;
       PWMCONF_t         pwmconf;
-      PWMCONF_t         pwm_scale;
+      PWM_SCALE_t       pwm_scale;
       LOST_STEPS_t      lost_steps;
-      DRIVER_STATUS_t   driver_status;
+      STATUS_t          driver_status;
       CONFIG_t config;
   };
   typedef union {
@@ -599,7 +610,7 @@ namespace TMC5160_n {
     TMC_addr_t addr;
     TMC_payload_t payload;
   } TMC_spi_datagram_t;
-  
+
   typedef union {
     uint8_t value;
     struct {

@@ -36,10 +36,10 @@ void Remora::initializeSystem() {
 void Remora::createThreadObjects() {
         threadMap["Base"] = std::make_unique<pruThread>("Base", base_freq);
         threadMap["Servo"] = std::make_unique<pruThread>("Servo", servo_freq);
-        threadMap["On load"] = std::make_unique<pruThread>("Comms", servo_freq);
+        threadMap["On load"] = nullptr; // We dont use a thread for On Load functions
 }
 
-// Example usage in loadModules function
+
 void Remora::loadModules() {
     ModuleFactory* factory = ModuleFactory::getInstance();
     JsonArray modules = configHandler->getModules();
@@ -54,23 +54,18 @@ void Remora::loadModules() {
             // Add frequency to module config to avoid freq in global namespace;
             // Create module using factory
             std::unique_ptr<Module> _mod = factory->createModule(threadName, moduleType, modules[i]);
-            if (!_mod) {
-                configError = true;
-                return;
-            }
-
-            threadMap[threadName]->registerModule(std::move(_mod));
-        } else {
-            MBED_ERROR1(MBED_MAKE_ERROR(MBED_MODULE_APPLICATION, MBED_ERROR_CODE_INVALID_ARGUMENT),"Invalid JSON Object!",0x1243);
-        }
+            if (_mod != nullptr) 
+                threadMap[threadName]->registerModule(std::move(_mod));
+        } 
     }
 }
 
 bool Remora::startThreads() {
         for (const auto& thPair : threadMap) {
-            if (!thPair.second->startThread()) {
-                return false;
-            }
+            if (thPair.second != nullptr)
+                if (!thPair.second->startThread()) {
+                    return false;
+                }
         }
 
         threadsRunning = true;
@@ -155,7 +150,8 @@ void Remora::handleState() {
 
 void Remora::cleanup() {
     for (const auto& thPair : threadMap) {
-        thPair.second->stopThread();
+        if (thPair.second != nullptr)
+            thPair.second->stopThread();
     }
 
     this->threadsRunning = false;

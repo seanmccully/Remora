@@ -76,7 +76,7 @@ std::unique_ptr<Module> ModuleFactory::createModule(const char* _tname,
     if (strcmp(_tname,"Servo") == 0)
         return createServoModule(_mtype)(config); 
     if (strcmp(_tname,"On load") == 0)
-        return createOnLoadModule(_mtype)(config); 
+        createOnLoadModule(_mtype)(config); // Dont return On Load modules 
 
     return nullptr;
 }

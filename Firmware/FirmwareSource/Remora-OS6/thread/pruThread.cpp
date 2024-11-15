@@ -48,7 +48,7 @@ bool pruThread::registerModule(unique_ptr<Module> module) {
     if (!module) {
         return false;
     }
-    modules.emplace_back(move(module));
+    modules.push_back(move(module));
     return true;
 }
 

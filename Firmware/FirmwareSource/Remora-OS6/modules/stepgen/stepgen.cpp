@@ -15,9 +15,9 @@ unique_ptr<Module> createStepgen(const JsonObject& config) {
     const int32_t freq = config["Frequency"];
 
     // configure pointers to data source and feedback location
-    //ptrJointFreqCmd[joint] = &rxData.jointFreqCmd[joint];
-    //ptrJointFeedback[joint] = &txData.jointFeedback[joint];
-    //ptrJointEnable = &rxData.jointEnable;
+    ptrJointFreqCmd[joint] = &rxData.jointFreqCmd[joint];
+    ptrJointFeedback[joint] = &txData.jointFeedback[joint];
+    ptrJointEnable = &rxData.jointEnable;
 
     // create the step generator, register it in the thread
     return make_unique<Stepgen>(freq, joint, enable, step, dir, STEPBIT, rxData.jointFreqCmd[joint], txData.jointFeedback[joint], rxData.jointEnable);

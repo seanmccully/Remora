@@ -5,28 +5,27 @@
 #define TOFF_VALUE  4 // [1... 15]
 
 /***********************************************************************
-                MODULE CONFIGURATION AND CREATION FROM JSON     
+                MODULE CONFIGURATION AND CREATION FROM JSON
 ************************************************************************/
 unique_ptr<Module> createTMC5160(const JsonObject& config) {
 
-    const char* comment = config["Comment"];
-    const char* CSPin = config["CS Pin"];
+    const char* CSPin = config["CS pin"];
     const char* SPIBus = config["SPI bus"];
     float       RSense = config["RSense"];
     uint16_t    current = config["Current"];
-    uint16_t    microsteps = config["Microsteps"];
+    uint8_t    microsteps = config["Microsteps"];
     const char* stealth = config["Stealth chop"];
-    uint16_t stall = config["Stall sensitivity"];
+    uint8_t stall = config["Stall sensitivity"];
 
     bool stealthchop;
 
-    if (!strcmp(stealth, "on"))
+    if (strcmp(stealth, "off") == 0)
     {
-        stealthchop = true;
+        stealthchop = false;
     }
     else
     {
-        stealthchop = false;   
+        stealthchop = true;
     }
 
     // SW Serial pin, RSense, mA, microsteps, stealh
@@ -61,7 +60,7 @@ void TMC5160::configure()
     uint16_t result;
 
     result = driver->test_connection();
-    // Defaults Set    
+    // Defaults Set
 }
 
 void TMC5160::update()

@@ -44,15 +44,15 @@ class TMCSPI
         uint8_t             rejectCnt;
         uint8_t             errorCode;
         bool                SPIdataError;
-        
-        PinName             CS_PIN;
-        GPIO_TypeDef*        CS_PORT;
-        
-        
-        void enforceTransferDelay();
+
+        Pin                  cs_pin;
+        GPIO_TypeDef*        cs_port;
+
+
+
     public:
 
-        TMCSPI(const char* cs_pin, const char* spiType_str); 
+        TMCSPI(const char* cs_pin, const char* spiType_str);
         void SetCSPin(void);
         void delayMicroseconds(uint32_t us);
         uint8_t init(void);
@@ -71,6 +71,8 @@ class TMCSPI
         PinName stringToPinName(const char* gpio_str);
         SPI_TypeDef* stringToSPIType(const const char* spiType_str);
         GPIO_TypeDef* stringToGPIO(const char*  gpio_str);
+				void resetSPI();
+				HAL_SPI_StateTypeDef getSPIState();
 
 };
 

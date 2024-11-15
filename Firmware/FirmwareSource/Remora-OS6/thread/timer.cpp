@@ -1,5 +1,4 @@
 #include "mbed.h"
-#include "stm32h7xx_hal.h"
 
 #include <iostream>
 #include <stdio.h>

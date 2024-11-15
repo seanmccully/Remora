@@ -7,18 +7,8 @@ Pin::Pin(const char* portAndPin, int dir) :
     portAndPin(portAndPin),
     dir(dir)
 {
-    // Set direction
-    if (this->dir == INPUT)
-    {
-        this->mode = GPIO_MODE_INPUT;
-        this->pull = GPIO_NOPULL;
-    }
-    else
-    {
-        this->mode = GPIO_MODE_OUTPUT_PP;
-        this->pull = GPIO_NOPULL;
-    }
-
+    this->modifier = PULLNONE;
+    setDir();
     this->configPin();
 }
 
@@ -27,6 +17,19 @@ Pin::Pin(const char* portAndPin, int dir, int modifier) :
     dir(dir),
     modifier(modifier)
 {
+    setDir();
+    this->configPin();
+}
+
+GPIO_TypeDef* Pin::getBus() {
+	return this->GPIOx;
+}
+
+uint32_t Pin::getPin(void) {
+	return this->pin;
+}
+
+void Pin::setDir() {
     // Set direction
     if (this->dir == INPUT)
     {
@@ -52,24 +55,56 @@ Pin::Pin(const char* portAndPin, int dir, int modifier) :
         this->mode = GPIO_MODE_OUTPUT_PP;
         this->pull = GPIO_NOPULL;
     }
-
-
-    this->configPin();
 }
 
 void Pin::configPin()
 {
     //x can be (A..H) to select the GPIO peripheral for STM32F40XX and STM32F427X devices.
-    GPIO_TypeDef* gpios[8] ={GPIOA,GPIOB,GPIOC,GPIOD,GPIOE,GPIOF,GPIOG,GPIOH};
-    
+    GPIO_TypeDef* gpios[8] ={GPIOA,
+#if defined(GPIOB)
+                             GPIOB,
+#else
+                             nullptr,
+#endif
+#if defined(GPIOC)
+                             GPIOC,
+#else
+                             nullptr,
+#endif
+#if defined(GPIOD)
+                             GPIOD,
+#else
+                             nullptr,
+#endif
+#if defined(GPIOE)
+                             GPIOE,
+#else
+                             nullptr,
+#endif
+#if defined(GPIOF)
+                             GPIOF,
+#else
+                             nullptr,
+#endif
+#if defined(GPIOG)
+                             GPIOG,
+#else
+                             nullptr,
+#endif
+#if defined(GPIOH)
+                             GPIOH};
+#else
+                             nullptr};
+#endif
+
 
     if (portAndPin[0] == 'P') // PXXX e.g.PA2 PC15
-    {  
+    {
         portIndex            = portAndPin[1] - 'A';
-        pinNumber            = portAndPin[3] - '0';       
-        uint16_t pin2        =  portAndPin[4] - '0';       
+        pinNumber            = portAndPin[3] - '0';
+        uint32_t pin2        =  portAndPin[4] - '0';
 
-        if (pin2 <= 8) 
+        if (pin2 <= 8)
         {
             this->pinNumber = this->pinNumber * 10 + pin2;
         }
@@ -79,7 +114,7 @@ void Pin::configPin()
     else
     {
         return;
-    }    
+    }
 
     // translate port index into something useful
     this->GPIOx = gpios[this->portIndex];
@@ -97,7 +132,7 @@ void Pin::configPin()
         case 2:
             __HAL_RCC_GPIOC_CLK_ENABLE();
             break;
-        
+
         case 3:
             __HAL_RCC_GPIOD_CLK_ENABLE();
             break;
@@ -105,15 +140,15 @@ void Pin::configPin()
         case 4:
             __HAL_RCC_GPIOE_CLK_ENABLE();
             break;
-        
+
         case 5:
             __HAL_RCC_GPIOF_CLK_ENABLE();
             break;
-        
+
         case 6:
             __HAL_RCC_GPIOG_CLK_ENABLE();
             break;
-        
+
         case 7:
             __HAL_RCC_GPIOH_CLK_ENABLE();
             break;
@@ -133,7 +168,7 @@ void Pin::initPin()
     GPIO_InitStruct.Mode = mode;
     GPIO_InitStruct.Pull = pull;
     GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
-    HAL_GPIO_Init(GPIOx, &GPIO_InitStruct);  
+    HAL_GPIO_Init(GPIOx, &GPIO_InitStruct);
 }
 
 void Pin::setAsOutput()

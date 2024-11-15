@@ -69,6 +69,18 @@ void mbed_error_reboot_callback(mbed_error_ctx *error_context)
 
 #endif
 
+// pointers to data
+volatile rxData_t rxData;
+volatile txData_t txData;
+volatile int32_t* ptrTxHeader;  
+volatile bool*    ptrPRUreset;
+volatile int32_t* ptrJointFreqCmd[JOINTS];
+volatile int32_t* ptrJointFeedback[JOINTS];
+volatile uint8_t* ptrJointEnable;
+volatile float*   ptrSetPoint[VARIABLES];
+volatile float*   ptrProcessVariable[VARIABLES];
+volatile uint16_t* ptrInputs;
+volatile uint16_t* ptrOutputs;
 
 
 /***********************************************************************
