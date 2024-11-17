@@ -26,8 +26,8 @@ class PWM : public Module
 
 	public:
 
-		PWM(volatile float&, const char*);
-		PWM(volatile float&, const char*, int);
+		PWM(volatile float*, const char*);
+		PWM(volatile float*, const char*, int);
 
 		virtual void update(void);
 		virtual void slowUpdate(void);

@@ -24,7 +24,7 @@ SoftwareSerial::SoftwareSerial(const char* tx, const char* rx)
         this->rxpin = new Pin(RXportAndPin,1);
         setRX();
     }
-    
+
     qin = 0;
     qout = 0;
     activeTx = false;
@@ -44,7 +44,7 @@ void SoftwareSerial::begin(int baudrate)
 void SoftwareSerial::setSpeed(int baudrate)
 {
     //ticker.detach();
-  
+
     //ticker.attach_us(callback(this, &SoftwareSerial::tickerHandler), 1000000.0 / (baudrate * 3.0));
     this->baudRate = baudrate;
 }
@@ -65,7 +65,7 @@ void SoftwareSerial::setRX(void)
 {
 
     this->rxpin->setAsInput();
-    this->rxpin->pull_up();
+    this->rxpin->pullUp();
 }
 
 void SoftwareSerial::setRXTX(bool input)
@@ -102,7 +102,7 @@ bool SoftwareSerial::listen()
 
 void SoftwareSerial::end(void)
 {
-    
+
 }
 
 void SoftwareSerial::tickerHandler(void)
@@ -191,7 +191,7 @@ int SoftwareSerial::available()
 void SoftwareSerial::printStr(char* str)
 {
     int i = 0;
-    int len = strlen(str); 
+    int len = strlen(str);
     for(i = 0; i<len; i++)
     {
         write(str[i]);
@@ -221,6 +221,6 @@ int16_t SoftwareSerial::read()
     char d = inbuf[qout] & 0xFF;
 
     if ( ++qout >= IN_BUF_SIZE ) {qout = 0;}
-    
+
     return d;
 }

@@ -2,25 +2,25 @@
 
 
 /***********************************************************************
-                MODULE CONFIGURATION AND CREATION FROM JSON     
+                MODULE CONFIGURATION AND CREATION FROM JSON
 ************************************************************************/
 
 unique_ptr<Module> createStepgen(const JsonObject& config) {
     const char* comment = config["Comment"];
 
-    int joint = config["Joint Number"];
+    uint8_t joint = config["Joint Number"];
     const char* enable = config["Enable Pin"];
     const char* step = config["Step Pin"];
     const char* dir = config["Direction Pin"];
-    const int32_t freq = config["Frequency"];
+    const uint32_t freq = config["Frequency"];
 
     // configure pointers to data source and feedback location
-    ptrJointFreqCmd[joint] = &rxData.jointFreqCmd[joint];
-    ptrJointFeedback[joint] = &txData.jointFeedback[joint];
-    ptrJointEnable = &rxData.jointEnable;
+    ptrJointFreqCmd[joint] = rxData->jointFreqCmd[joint];
+    ptrJointFeedback[joint] = txData->jointFeedback[joint];
+    ptrJointEnable = &rxData->jointEnable;
 
     // create the step generator, register it in the thread
-    return make_unique<Stepgen>(freq, joint, enable, step, dir, STEPBIT, rxData.jointFreqCmd[joint], txData.jointFeedback[joint], rxData.jointEnable);
+    return make_unique<Stepgen>(freq, joint, enable, step, dir, STEPBIT, &rxData->jointFreqCmd[joint], &txData->jointFeedback[joint], &rxData->jointEnable);
 }
 
 
@@ -28,23 +28,27 @@ unique_ptr<Module> createStepgen(const JsonObject& config) {
                 METHOD DEFINITIONS
 ************************************************************************/
 
-Stepgen::Stepgen(int32_t threadFreq, int jointNumber, const char* enable, const char* step, const char* direction, int stepBit, volatile int32_t &ptrFrequencyCommand, volatile int32_t &ptrFeedback, volatile uint8_t &ptrJointEnable) :
+Stepgen::Stepgen(uint32_t threadFreq, uint8_t jointNumber, const char* enable, const char* step, const char* direction, uint8_t stepBit, volatile uint32_t* ptrFrequencyCommand, volatile uint32_t* ptrFeedback, volatile uint8_t* ptrJointEnable) :
 	jointNumber(jointNumber),
 	enable(enable),
 	step(step),
 	direction(direction),
 	stepBit(stepBit),
-	ptrFrequencyCommand(&ptrFrequencyCommand),
-	ptrFeedback(&ptrFeedback),
-	ptrJointEnable(&ptrJointEnable)
+	ptrFrequencyCommand(ptrFrequencyCommand),
+	ptrFeedback(ptrFeedback),
+	ptrJointEnable(ptrJointEnable)
 {
-	this->enablePin = new Pin(this->enable, OUTPUT);			// create Pins
-	this->stepPin = new Pin(this->step, OUTPUT);
-	this->directionPin = new Pin(this->direction, OUTPUT);
+	this->enablePin = new Pin(this->enable, GPIO_MODE_OUTPUT_PP);			// create Pins
+	this->stepPin = new Pin(this->step, GPIO_MODE_OUTPUT_PP);
+	this->directionPin = new Pin(this->direction, GPIO_MODE_OUTPUT_PP);
 	this->DDSaccumulator = 0;
 	this->frequencyScale = (float)(1 << this->stepBit) / (float)threadFreq;
 	this->mask = 1 << this->jointNumber;
-	this->isEnabled = false;
+
+    this->enablePin->resetPinState();
+    this->stepPin->resetPinState();
+    this->directionPin->resetPinState();
+	this->isEnabled = true;
 	this->isForward = false;
 }
 
@@ -68,7 +72,7 @@ void Stepgen::makePulses()
 
 	if (this->isEnabled == true)  												// this Step generator is enables so make the pulses
 	{
-		this->enablePin->set(false);                                			// Enable the driver - CHANGE THIS TO MAKE THE OUTPUT VALUE CONFIGURABLE???
+		this->enablePin->setPinState();                                			// Enable the driver - CHANGE THIS TO MAKE THE GPIO_MODE_OUTPUT_PP, GPIO_NOPULL VALUE CONFIGURABLE???
 
 		this->frequencyCommand = *(this->ptrFrequencyCommand);            		// Get the latest frequency command via pointer to the data source
 		this->DDSaddValue = this->frequencyCommand * this->frequencyScale;		// Scale the frequency command to get the DDS add value

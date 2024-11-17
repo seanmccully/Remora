@@ -21,7 +21,7 @@
 
 MBED_WEAK void init_probe_pins(void) {
     gpio_t gpio;
-    
+
     // Initialize probe pins based on PinMap_PROBE
     for(int i = 0; PinMap_PROBE[i].pin != NC; i++) {
         if(PinMap_PROBE[i].peripheral == PIN_INPUT) {
@@ -136,12 +136,12 @@ MBED_WEAK void init_board_pins(void) {
         gpio_init_out(&gpio, PinMap_STEPPER_STEP[i].pin);
         gpio_write(&gpio, 0);
     }
-    
+
     for(int i = 0; PinMap_STEPPER_DIR[i].pin != NC; i++) {
         gpio_init_out(&gpio, PinMap_STEPPER_DIR[i].pin);
         gpio_write(&gpio, 0);
     }
-    
+
     for(int i = 0; PinMap_STEPPER_ENABLE[i].pin != NC; i++) {
         gpio_init_out(&gpio, PinMap_STEPPER_ENABLE[i].pin);
         gpio_write(&gpio, 1);  // Active LOW, disabled by default
@@ -165,17 +165,15 @@ MBED_WEAK void init_board_pins(void) {
         gpio_mode(&gpio, PullUp);
     }
 
-    // Initialize beeper
-    for(int i = 0; PinMap_BEEPER[i].pin != NC; i++) {
-        gpio_init_out(&gpio, PinMap_BEEPER[i].pin);
-        gpio_write(&gpio, 0);  // Start with beeper off
+    // Disable SPI CS Pins
+    for(int i = 0; PinMap_TMC_SPI[i].pin != NC; i++) {
+        gpio_init_out(&gpio, PinMap_TMC_SPI[i].pin);
+        gpio_write(&gpio, 1);  // Active Low, Disabled by default
     }
 
     // Initialize other subsystems
     init_probe_pins();
-    init_spi1();
-    init_spi2();
-    init_spi3();
+
 }
 
 MBED_WEAK void init_sdio(void) {
@@ -191,7 +189,7 @@ MBED_WEAK void init_sdio(void) {
 
 MBED_WEAK void set_sdio_clock(bool enable, PinName sdio_ck) {
     const PinMap *sdio_map = PinMap_SD;
-    
+
     // Find clock pin
     while(sdio_map->pin != NC) {
         if(sdio_map->pin == sdio_ck) {  // SDIO_CK pin
@@ -230,7 +228,7 @@ MBED_WEAK bool is_sd_card_present(void) {
 // SDIO power control if needed
 MBED_WEAK void sdio_power_control(bool enable) {
     gpio_t gpio;
-    
+
     #ifdef SDIO_POWER_PIN
         gpio_init_out(&gpio, SDIO_POWER_PIN);
         gpio_write(&gpio, enable ? SDIO_POWER_ON_STATE : !SDIO_POWER_ON_STATE);
@@ -242,17 +240,17 @@ MBED_WEAK void sdio_power_control(bool enable) {
 MBED_WEAK int init_sdio_interface(void) {
     // Initialize basic SDIO pins
     init_sdio();
-    
+
     // Check for card presence if supported
     if (!is_sd_card_present()) {
         return -1;  // No card present
     }
-    
+
     // Power up sequence
     sdio_power_control(false);  // Power off first
     wait_us(1000);             // Wait 1ms
     sdio_power_control(true);   // Power on
     wait_us(1000);             // Wait for power to stabilize
-    
+
     return 0;  // Success
 }

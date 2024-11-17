@@ -4,6 +4,61 @@
 
 #include <cstdint>
 
+// Define bit shifts and masks for the new 11-bit CAN ID format
+constexpr uint32_t PRIORITY_SHIFT = 10;  // Priority (1 bit)
+constexpr uint32_t SOURCE_SHIFT = 9;    // Source Node ID (1 bit)
+constexpr uint32_t DEST_SHIFT = 8;      // Destination Node ID (1 bit)
+constexpr uint32_t TYPE_SHIFT = 4;      // Message Type (4 bits)
+constexpr uint32_t INDEX_SHIFT = 0;     // Index (4 bits)
+
+constexpr uint32_t PRIORITY_MASK = 0x01;  // 1 bit
+constexpr uint32_t SOURCE_MASK = 0x01;   // 1 bit
+constexpr uint32_t DEST_MASK = 0x01;     // 1 bit
+constexpr uint32_t TYPE_MASK = 0x0F;     // 4 bits
+constexpr uint32_t INDEX_MASK = 0x0F;    // 4 bits
+
+/* 29Bit Masks
+constexpr uint32_t PRIORITY_SHIFT = 26;
+constexpr uint32_t SOURCE_SHIFT = 21;
+constexpr uint32_t DEST_SHIFT = 16;
+constexpr uint32_t TYPE_SHIFT = 8;
+constexpr uint32_t INDEX_SHIFT = 0;
+
+constexpr uint32_t PRIORITY_MASK = 0x07;  // 3 bits
+constexpr uint32_t SOURCE_MASK = 0x1F;    // 5 bits
+constexpr uint32_t DEST_MASK = 0x1F;      // 5 bits
+constexpr uint32_t TYPE_MASK = 0xFF;      // 8 bits
+constexpr uint32_t INDEX_MASK = 0xFF;     // 8 bits
+*/
+// Constants
+constexpr size_t MAX_CAN_PAYLOAD = 8;
+constexpr int CAN_BAUDRATE = 500000;
+constexpr uint32_t CAN_TIMEOUT_MS = 100;
+constexpr int MAX_RETRY_COUNT = 3;
+constexpr int DIGITAL_INPUTS = 16;
+constexpr int DIGITAL_OUTPUTS = 16;
+
+
+// Define message queue sizes
+constexpr size_t HIGH_PRIORITY_QUEUE_SIZE = 16;
+constexpr size_t MEDIUM_PRIORITY_QUEUE_SIZE = 32;
+constexpr size_t LOW_PRIORITY_QUEUE_SIZE = 16;
+
+typedef struct CANQueueMessage {
+    uint32_t id;
+    uint8_t data[8];
+    uint8_t len;
+    // Ensure this is defined
+    CANQueueMessage& operator=(const CANQueueMessage& other) {
+        if (this != &other) {
+            id = other.id;
+            len = other.len;
+            memcpy(data, other.data, sizeof(data));
+        }
+        return *this;
+    }
+} CANQueueMessage_t ;
+
 // Message Types
 enum MessageType {
     MSG_JOINT_CMD = 0x01,   // Joint command message
@@ -12,7 +67,13 @@ enum MessageType {
     MSG_PV_FB = 0x04,       // Process variable feedback
     MSG_DIG_OUT = 0x05,     // Digital outputs
     MSG_DIG_IN = 0x06,      // Digital inputs
-    MSG_STATUS = 0x07       // Status message
+    MSG_STATUS = 0x07,       // Status message
+    MSG_JOINT_ENABLE = 0x08,  // Add joint enable message type
+    MSG_HEART_BEAT = 0x09,
+    MSG_START = 0x0A,
+    MSG_START_ACK = 0x0B,
+    MSG_STOP = 0x0C,
+    MSG_STOP_ACK = 0x0D
 };
 
 // Priority Levels
@@ -24,8 +85,8 @@ enum Priority {
 
 // Node IDs
 enum NodeId {
-    NODE_CONTROLLER = 0x01,
-    NODE_REMORA = 0x02
+    NODE_CONTROLLER = 0x00,
+    NODE_REMORA = 0x01
 };
 
 // CAN Frame Structure
@@ -67,29 +128,24 @@ struct StatusMessage {
 
 #pragma pack(pop)
 
-// Helper functions
-inline uint32_t makeCanId(uint8_t priority, uint8_t src, uint8_t dest, uint8_t type, uint8_t index) {
-    return ((uint32_t)priority << 26) |
-           ((uint32_t)src << 21) |
-           ((uint32_t)dest << 16) |
-           ((uint32_t)type << 8) |
-           (uint32_t)index;
+// Function to create a standard 11-bit CAN ID
+inline uint16_t makeCanId(uint8_t priority, uint8_t src, uint8_t dest, uint8_t type, uint8_t index) {
+    uint16_t id = 0;
+    id |= (priority & PRIORITY_MASK) << PRIORITY_SHIFT; // Priority (bit 10)
+    id |= (src & SOURCE_MASK) << SOURCE_SHIFT;         // Source Node ID (bit 9)
+    id |= (dest & DEST_MASK) << DEST_SHIFT;            // Destination Node ID (bit 8)
+    id |= (type & TYPE_MASK) << TYPE_SHIFT;            // Message Type (bits 4–7)
+    id |= (index & INDEX_MASK) << INDEX_SHIFT;         // Index (bits 0–3)
+    return id;  // Return 11-bit ID
 }
 
-inline void parseCanId(uint32_t can_id, CANHeader& header) {
-    header.priority = (can_id >> 26) & 0x07;
-    header.source = (can_id >> 21) & 0x1F;
-    header.dest = (can_id >> 16) & 0x1F;
-    header.type = (can_id >> 8) & 0xFF;
-    header.index = can_id & 0xFF;
+// Function to parse a standard 11-bit CAN ID
+inline void parseCanId(uint16_t can_id, CANHeader& header) {
+    header.priority = (can_id >> PRIORITY_SHIFT) & PRIORITY_MASK;
+    header.source = (can_id >> SOURCE_SHIFT) & SOURCE_MASK;
+    header.dest = (can_id >> DEST_SHIFT) & DEST_MASK;
+    header.type = (can_id >> TYPE_SHIFT) & TYPE_MASK;
+    header.index = (can_id >> INDEX_SHIFT) & INDEX_MASK;
 }
-
-// Constants
-constexpr size_t MAX_CAN_PAYLOAD = 8;
-constexpr int CAN_BAUDRATE = 500000;  // 500 kbps
-constexpr uint32_t CAN_TIMEOUT_MS = 100;
-constexpr int MAX_RETRY_COUNT = 3;
-constexpr int DIGITAL_INPUTS = 16;
-constexpr int DIGITAL_OUTPUTS = 16;
 
 #endif // REMORA_PROTOCOL_H

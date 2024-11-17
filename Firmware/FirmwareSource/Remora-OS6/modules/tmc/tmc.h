@@ -78,8 +78,11 @@ class TMC5160 : public TMC
 {
   protected:
 
-    const char* csPin; 
-    const char* spiBus; 
+    const char* csPin;
+    const char* miso;
+    const char* mosi;
+    const char* sck;
+    const char* spiBus;
     uint16_t    mA;
     uint16_t    microsteps;
     bool        stealth;
@@ -93,6 +96,7 @@ class TMC5160 : public TMC
     // SW Serial pin, Rsense, addr, mA, microsteps, stealh, hybrid, stall
     // TMC2209(const char*, float, uint8_t, uint16_t, uint16_t, bool, uint16_t);
     TMC5160(const char* csPin, const char* spiBus, float Rsense, uint16_t mA, uint16_t microsteps, bool stealth);
+    TMC5160(const char* csPin, const char* miso, const char* mosi, const char *sck, float Rsense, uint16_t mA, uint16_t microsteps, bool stealth);
     ~TMC5160();
 
     void update(void);           // Module default interface

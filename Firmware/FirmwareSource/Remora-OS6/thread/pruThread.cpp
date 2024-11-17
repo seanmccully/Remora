@@ -1,47 +1,37 @@
 #include "pruThread.h"
 #include "modules/module.h"
+#include "gpioApi.h"
 
+// Statically declare an IRQ handler and run-time enable it
+#define armcm_enable_irq(FUNC, NUM, PRIORITY) do {      \
+        NVIC_SetVector(NUM, (uint32_t)FUNC);                      \
+        NVIC_SetPriority((NUM), (PRIORITY));            \
+        NVIC_EnableIRQ((NUM));                          \
+    } while (0)
 
-
-pruThread::pruThread(const string& name, uint32_t freq)
+pruThread::pruThread(const string& name, TIM_TypeDef *timer, IRQn_Type irq, uint32_t freq, uint32_t irqHandler, uint8_t prio)
     : threadName(name)
+    , timer(timer)
+    , irq(irq)
     , frequency(freq)
     , periodUs(1000000 / freq)
-    , worstCaseThreadTime(0)
-    , bestCaseThreadTime(0)
-{}
+{
+
+    armcm_enable_irq(irqHandler, irq, prio);
+    //NVIC_SetVector(irq, irqHandler);
+    //NVIC_SetPriority(irq, prio);
+
+}
+
 
 
 bool pruThread::executeModules() {
     for (const auto& module : modules) {
-        if (module) { 
-            module->runModule();    
+        if (module) {
+            module->runModule();
         }
     }
     return true;
-}
-
-void pruThread::waitForNextCycle(uint64_t startTime) {
-    nextThreadTime += periodUs;
-
-    // Check for thread overrun
-    if (nextThreadTime < startTime) {
-        nextThreadTime = startTime + periodUs;
-    }
-
-    // Wait until next cycle
-    while (threadTimer.read_us() < nextThreadTime) {
-        __WFE(); // Wait for event (power saving)
-    }
-}
-
-void pruThread::updateThreadStats(uint64_t executionTime) {
-    if (executionTime > worstCaseThreadTime) {
-        worstCaseThreadTime = executionTime;
-    }
-    if (executionTime < bestCaseThreadTime || bestCaseThreadTime == 0) {
-        bestCaseThreadTime = executionTime;
-    }
 }
 
 bool pruThread::registerModule(unique_ptr<Module> module) {
@@ -54,73 +44,42 @@ bool pruThread::registerModule(unique_ptr<Module> module) {
 
 // For baremetal, this is just initialization
 bool pruThread::startThread() {
-    if (threadRunning) {
+    if (isRunning()) {
         return true;
     }
 
-    threadRunning = true;
-    threadPaused = false;
-    threadTimer.start();
-    nextThreadTime = threadTimer.read_us();
+    setThreadRunning(true);
+    setThreadPaused(false);
 
+    timerPtr = new pruTimer(timer, irq, frequency, this);
     return true;
 }
 
 void pruThread::stopThread() {
-    threadRunning = false;
-    threadPaused = false;
+    setThreadRunning(false);
+    setThreadPaused(false);
 }
 
 // This is the main function that should be called periodically
 bool pruThread::update() {
-    if (!threadRunning || threadPaused) {
+    if (!isRunning() || isPaused()) {
         return true;
     }
-
-    uint64_t startTime = threadTimer.read_us();
 
     // Execute all modules
     if (!executeModules()) {
         return false;
     }
 
-    // Calculate execution time
-    uint64_t executionTime = threadTimer.read_us() - startTime;
-    updateThreadStats(executionTime);
-
-    // Wait for next cycle
-    waitForNextCycle(startTime);
-
     return true;
 }
 
 void pruThread::pauseThread() {
-    threadPaused = true;
+    setThreadPaused(true);
 }
 
 void pruThread::resumeThread() {
-    threadPaused = false;
-}
-
-bool pruThread::isRunning() const {
-    return threadRunning;
-}
-
-bool pruThread::isPaused() const {
-    return threadPaused;
-}
-
-uint32_t pruThread::getWorstCaseTime() const {
-    return worstCaseThreadTime;
-}
-
-uint32_t pruThread::getBestCaseTime() const {
-    return bestCaseThreadTime;
-}
-
-void pruThread::resetThreadStats() {
-    worstCaseThreadTime = 0;
-    bestCaseThreadTime = 0;
+    setThreadPaused(false);
 }
 
 size_t pruThread::getModuleCount() const {

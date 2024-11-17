@@ -13,7 +13,7 @@ SoftPWM::SoftPWM(const char* pin) :
 	SDaccumulator(0),
 	SDdirection(false)
 {
-	this->pwmPin = new Pin(this->pin, OUTPUT);
+	this->pwmPin = new Pin(this->pin, GPIO_OUTPUT);
 }
 
 

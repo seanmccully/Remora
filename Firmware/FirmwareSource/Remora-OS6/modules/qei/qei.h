@@ -31,8 +31,8 @@ class QEI : public Module
 
 	public:
 
-        QEI(volatile float&);                           // for channel A & B
-        QEI(volatile float&, volatile uint16_t&, int);   // For channels A & B, and index
+        QEI(volatile float*);                           // for channel A & B
+        QEI(volatile float*, volatile uint16_t*, int);   // For channels A & B, and index
 
 		virtual void update(void);
 };

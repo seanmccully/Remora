@@ -26,7 +26,7 @@ pruTimer::pruTimer(TIM_TypeDef* timer, IRQn_Type irq, uint32_t frequency, pruThr
 void pruTimer::timerTick(void)
 {
 	//Do something here
-	this->timerOwnerPtr->update();
+    this->timerOwnerPtr->update();
 }
 
 
@@ -61,7 +61,7 @@ void pruTimer::startTimer(void)
 
     this->timer->CR2 &= 0;                                            // UG used as trigg output
     this->timer->PSC = TIM_PSC-1;                                     // prescaler
-    this->timer->ARR = ((TIM_CLK / TIM_PSC / this->frequency) - 1);   // period           
+    this->timer->ARR = ((TIM_CLK / TIM_PSC / this->frequency) - 1);   // period
     this->timer->EGR = TIM_EGR_UG;                                    // reinit the counter
     this->timer->DIER = TIM_DIER_UIE;                                 // enable update interrupts
 

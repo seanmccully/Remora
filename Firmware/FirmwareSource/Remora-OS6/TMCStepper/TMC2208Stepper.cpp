@@ -110,8 +110,8 @@ void TMC2208Stepper::preWriteCommunication() {
 __attribute__((weak))
 void TMC2208Stepper::preReadCommunication() {
 
-	SWSerial->listen();	
-    //this->debug2->write(1);				
+	SWSerial->listen();
+    //this->debug2->write(1);
 }
 
 
@@ -130,7 +130,7 @@ void TMC2208Stepper::postReadCommunication() {
 __attribute__((weak))
 int16_t TMC2208Stepper::serial_read() {
     int16_t out = 0;
-     
+
     out = SWSerial->read();
 
 	return out;
@@ -150,11 +150,11 @@ void TMC2208Stepper::write(uint8_t addr, uint32_t regVal) {
     uint8_t len = 7;
     addr |= TMC_WRITE;
     uint8_t datagram[] = {TMC2208_SYNC, slave_address, addr, (uint8_t)(regVal>>24), (uint8_t)(regVal>>16), (uint8_t)(regVal>>8), (uint8_t)(regVal>>0), 0x00};
-	
+
     datagram[len] = calcCRC(datagram, len);
-	
+
 	//printf("write datagram = %x, %x, %x, %x, %x, %x, %x, %x\n", datagram[0], datagram[1], datagram[2], datagram[3], datagram[4], datagram[5], datagram[6], datagram[7]);
-    
+
     preWriteCommunication();
 
     for(uint8_t i=0; i<=len; i++) {
@@ -168,15 +168,15 @@ void TMC2208Stepper::write(uint8_t addr, uint32_t regVal) {
 }
 
 uint64_t TMC2208Stepper::_sendDatagram(uint8_t datagram[], const uint8_t len, uint16_t timeout) {
-	
+
     while (available() > 0) serial_read(); // Flush
 
     tmcTimer.reset();
-    tmcTimer.start(); 
+    tmcTimer.start();
 
     preWriteCommunication();
 	for(int i=0; i<=len; i++)
-    {   
+    {
         serial_write(datagram[i]);
     }
 	//delay(replyDelay);
@@ -209,7 +209,7 @@ uint64_t TMC2208Stepper::_sendDatagram(uint8_t datagram[], const uint8_t len, ui
 	uint64_t out = sync;
 	ms = tmcTimer.read_ms();
 	timeout = this->abort_window;
-		 
+
 	for(uint8_t i=0; i<5;) {
 		uint32_t ms2 = tmcTimer.read_ms();
 		if (ms2 != ms) {
@@ -228,7 +228,7 @@ uint64_t TMC2208Stepper::_sendDatagram(uint8_t datagram[], const uint8_t len, ui
 	}
 
     tmcTimer.stop();
-		
+
 	while (available() > 0) serial_read(); // Flush
 
 	return out;
@@ -241,7 +241,7 @@ uint32_t TMC2208Stepper::read(uint8_t addr) {
     datagram[len] = calcCRC(datagram, len);
     uint64_t out = 0x00000000UL;
 
-    for (uint8_t i = 0; i < max_retries; i++) {			 
+    for (uint8_t i = 0; i < max_retries; i++) {
         preReadCommunication();
         out = _sendDatagram(datagram, len, abort_window);
         postReadCommunication();
@@ -262,7 +262,7 @@ uint32_t TMC2208Stepper::read(uint8_t addr) {
             static_cast<uint8_t>(out>> 0)
         };
         //printf("read  datagram = %x, %x, %x, %x, %x, %x, %x, %x\n", out_datagram[0], out_datagram[1], out_datagram[2], out_datagram[3], out_datagram[4], out_datagram[5], out_datagram[6], out_datagram[7]);
-		
+
         uint8_t crc = calcCRC(out_datagram, 7);
         if ((crc != static_cast<uint8_t>(out)) || crc == 0 ) {
             CRCerror = true;

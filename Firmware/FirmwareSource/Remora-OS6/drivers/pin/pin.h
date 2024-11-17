@@ -20,65 +20,93 @@ using namespace std;
 #include "stm32g0xx_hal.h"
 #endif
 
+#include "arm_irq.h"
 
-#define INPUT 0x0
-#define OUTPUT 0x1
+#define GPIO_INPUT  GPIO_MODE_INPUT
+#define GPIO_OUTPUT GPIO_MODE_OUTPUT_PP
+#define GPIO_AF     GPIO_MODE_AF_PP
 
-#define NONE        0b000
-#define OPENDRAIN   0b001
-#define PULLUP      0b010
-#define PULLDOWN    0b011
-#define PULLNONE    0b100
+#define NONE        GPIO_NOPULL
+#define PULLUP      GPIO_PULLUP
+#define PULLDOWN    GPIO_PULLDOWN
+#define PULLNONE    GPIO_NOPULL
+#define GPIO_ANALOG GPIO_MODE_ANALOG
 
 class Pin
 {
     private:
 
-        const char*         portAndPin;
-        uint8_t             dir;
-        uint8_t             modifier;
-        uint8_t             portIndex;
-        uint16_t            pinNumber;
-        uint32_t            pin;
-        uint32_t            mode;
-        uint32_t            pull;
+        bool                invert = false;
+		bool				ovrrde = false;
+        uint8_t             _ospeed = GPIO_SPEED_FREQ_HIGH;
+        uint16_t            gpioNumber;
+        uint32_t            mode = GPIO_MODE_OUTPUT_PP;
+        uint32_t            pull = GPIO_NOPULL;
         uint32_t            speed;
+        PinName             pinName;
         GPIO_TypeDef*       GPIOx;
-        GPIO_InitTypeDef    GPIO_InitStruct = {0};
 
     public:
 
-        Pin(const char*, int);
-        Pin(const char*, int, int);
+	    Pin() : gpioNumber(0), mode(GPIO_OUTPUT), pull(GPIO_NOPULL) {} // Default Construct
+		Pin(const char*, uint32_t);
+        Pin(uint32_t gpio, uint32_t mode);
+		Pin(const char* portAndPin, uint32_t mode, uint32_t pull, bool invert);
+        Pin(uint32_t, uint32_t mode, uint32_t pull, bool invert, uint32_t altMode);
+        Pin(const char*, uint32_t mode,uint32_t pull, bool invert, uint32_t altMode);
+        ~Pin() {
+            HAL_GPIO_DeInit(GPIOx, gpioNumber);
+        }
 
         PwmOut* hardware_pwm();
-				GPIO_TypeDef* getBus(void);
-				uint32_t getPin(void);
+        GPIO_TypeDef* getBus(void);
+        PinName strToPinName(const char *);
+        uint32_t getBit(void);
+        uint8_t readPin(void);
+        void setPinState(void);
+        void resetPinState(void);
 
-        void configPin();
-        void initPin();
-        void setDir();
+        void clkEnable();
         void setAsOutput();
         void setAsInput();
-        void pull_none();
-        void pull_up();
-        void pull_down();
+        void pullNone();
+        void pullUp();
+        void pullDown();
+        static GPIO_TypeDef* getGPIOx(int);
+        uint32_t getGPIONumber();
+        void setGPIOx();
+        inline uint32_t getPinN(void) { return (gpioNumber % 16); }
+        inline uint32_t getPinB(void) { return 1 << (gpioNumber % 16); }
+        inline uint32_t getGPION(void) { return this->gpioNumber; }
+        inline uint32_t getMode(void) { return this->mode; }
+
+        void gpioSetup();
+        void gpioReset();
+        void gpioPeripheral();
+        void gpioClockEnable();
+        void setPin(bool);
+        void togglePin();
+		void setFastSpeed();
+		void setHighSpeed();
+		void setMediumSpeed();
+		void setLowSpeed();
+
         PinName pinToPinName();
 
         inline bool get()
         {
-            return HAL_GPIO_ReadPin(this->GPIOx, this->pin);
+            return HAL_GPIO_ReadPin(GPIOx, gpioNumber);
         }
 
         inline void set(bool value)
         {
             if (value)
             {
-                HAL_GPIO_WritePin(this->GPIOx, this->pin, GPIO_PIN_SET);
+                HAL_GPIO_WritePin(this->GPIOx, this->gpioNumber, GPIO_PIN_SET);
             }
             else
             {
-                HAL_GPIO_WritePin(this->GPIOx, this->pin, GPIO_PIN_RESET);
+                HAL_GPIO_WritePin(this->GPIOx, this->gpioNumber, GPIO_PIN_RESET);
             }
         }
 };

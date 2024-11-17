@@ -15,7 +15,7 @@
 
 class JsonConfigHandler {
 private:
-    static constexpr size_t MAX_JSON_SIZE = 16384; // 16KB max config size
+    static constexpr size_t MAX_JSON_SIZE = 8192; // 8KB max config size
     static constexpr size_t READ_BUFFER_SIZE = 256;
     std::string jsonContent = "";
     const char* filename = "config.txt";

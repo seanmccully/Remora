@@ -6,13 +6,13 @@
 ModuleCreator ModuleFactory::createBaseModule(const char* modN) {
 
     if (strcmp(modN,"Stepgen") == 0)
-        return createStepgen; 
+        return createStepgen;
 
     if (strcmp(modN,"Encoder") == 0)
-        return createEncoder; 
+        return createEncoder;
 
     if (strcmp(modN,"RCServo") == 0)
-        return createRCServo; 
+        return createRCServo;
     return nullptr;
 }
 
@@ -20,28 +20,28 @@ ModuleCreator ModuleFactory::createBaseModule(const char* modN) {
 ModuleCreator ModuleFactory::createServoModule(const char* modN) {
 
     if (strcmp(modN,"eStop") == 0)
-        return createEStop; 
+        return createEStop;
 
     if (strcmp(modN,"Digital Pin") == 0)
-        return createDigitalPin; 
+        return createDigitalPin;
 
     if (strcmp(modN,"PWM") == 0)
-        return createPWM; 
+        return createPWM;
 
     if (strcmp(modN,"Temperature") == 0)
-        return createTemperature; 
+        return createTemperature;
 
     if (strcmp(modN,"Switch") == 0)
-        return createSwitch; 
+        return createSwitch;
 
     if (strcmp(modN,"QEI") == 0)
-        return createQEI; 
+        return createQEI;
 
     if (strcmp(modN,"Blink") == 0)
-        return createBlink; 
+        return createBlink;
 
     if (strcmp(modN,"Reset Pin") == 0)
-        return createResetPin; 
+        return createResetPin;
 
     return nullptr;
 }
@@ -50,33 +50,33 @@ ModuleCreator ModuleFactory::createServoModule(const char* modN) {
 ModuleCreator ModuleFactory::createOnLoadModule(const char* modN) {
 
     if (strcmp(modN, "MCP4451") == 0)
-        return createMCP4451; 
+        return createMCP4451;
 
     if (strcmp(modN,"Motor Power") == 0)
-        return createMotorPower; 
+        return createMotorPower;
 
     if (strcmp(modN,"TMC2208") == 0)
-        return createTMC2208; 
+        return createTMC2208;
 
     if (strcmp(modN,"TMC2209") == 0)
-        return createTMC2209; 
+        return createTMC2209;
 
     if (strcmp(modN,"TMC5160") == 0)
-        return createTMC5160; 
+        return createTMC5160;
 
     return nullptr;
 }
 
 // Create module based on thread and type
-std::unique_ptr<Module> ModuleFactory::createModule(const char* _tname, 
+std::unique_ptr<Module> ModuleFactory::createModule(const char* _tname,
                                    const char* _mtype,
                                    const JsonVariant config) {
     if (strcmp(_tname,"Base") == 0)
-        return createBaseModule(_mtype)(config); 
+        return createBaseModule(_mtype)(config);
     if (strcmp(_tname,"Servo") == 0)
-        return createServoModule(_mtype)(config); 
+        return createServoModule(_mtype)(config);
     if (strcmp(_tname,"On load") == 0)
-        createOnLoadModule(_mtype)(config); // Dont return On Load modules 
+        return createOnLoadModule(_mtype)(config); // Dont return On Load modules
 
     return nullptr;
 }

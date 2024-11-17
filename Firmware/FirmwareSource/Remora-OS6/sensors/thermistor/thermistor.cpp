@@ -11,7 +11,7 @@ Thermistor::Thermistor(const char* pin, float beta, int r0, int t0) :
 	this->j = (1.0F / this->beta);
 	this->k = (1.0F / (this->t0 + 273.15F));
 
-	this->thermistorPin = new Pin(this->pin, INPUT);
+	this->thermistorPin = new Pin(this->pin, GPIO_INPUT);
     this->adc = new AnalogIn(this->thermistorPin->pinToPinName());
 	this->r1 = 0;
 	this->r2 = 4700;

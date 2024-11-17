@@ -3,11 +3,12 @@
 
 #include <cstdint>
 
-#include "modules/module.h"
-#include "drivers/pin/pin.h"
 #include "jsonConfigHandler.h"
+#include "module.h"
+#include "pin.h"
 
 #include "remora.h"
+#include "data.h"
 
 unique_ptr<Module> createDigitalPin(const JsonObject& config);
 
@@ -28,7 +29,7 @@ class DigitalPin : public Module
 
 	public:
 
-    DigitalPin(volatile uint16_t&, int, const char*, int, bool, int);
+    DigitalPin(volatile uint16_t&, int, const char*, int, bool);
 		virtual void update(void);
 		virtual void slowUpdate(void);
 };

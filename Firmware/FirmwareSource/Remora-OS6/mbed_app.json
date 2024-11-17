@@ -49,7 +49,7 @@
             "platform.stdio-baud-rate": 115200,
             "platform.stack-dump-enabled": true,
             "platform.error-hist-enabled": true,
-						"platform.crash-capture-enabled": true,
+			"platform.crash-capture-enabled": true,
             "platform.error-filename-capture-enabled": true,
             "platform.error-all-threads-info": true,
             "fat_chan.ff_fs_nortc"   : 1,
@@ -58,6 +58,21 @@
             "fat_chan.ff_nortc_year"   : 2024,
             "target.stdio_uart_tx": "PA_9",
             "target.stdio_uart_rx": "PA_10",
+            "target.features_add": ["STORAGE"]
+        },
+    "OCTOPUS_723": {
+            "target.mbed_app_start": "0x08020000",   
+            "target.mbed_app_size": "0xE0000",       
+            "sd.SPI_MOSI": "PA_7",
+            "sd.SPI_MISO": "PA_6",
+            "sd.SPI_CLK":  "PA_5",
+            "sd.SPI_CS":   "PA_4",
+            "target.components_add": ["CAN", "SD", "USB_DEVICE", "CRASH_CAPTURE"],
+            "platform.stdio-baud-rate": 115200,
+            "fat_chan.ff_fs_nortc"   : 1,
+            "fat_chan.ff_nortc_mday"   : 11,
+            "fat_chan.ff_nortc_mon"   : 11,
+            "fat_chan.ff_nortc_year"   : 2024,
             "target.features_add": ["STORAGE"]
         },
         "SKRV2": {
@@ -124,7 +139,7 @@
         },
         "OCTOPUS_446": {
             "target.mbed_app_start": "0x08008000",
-            "target.components_add" : ["CAN", "SD"],
+            "target.components_add": ["CAN", "SD", "USB_DEVICE", "CRASH_CAPTURE", "STORAGE"],
             "target.c_lib": "std",
             "sd.SPI_MOSI": "PA_7",
             "sd.SPI_MISO": "PA_6",

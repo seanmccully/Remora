@@ -18,7 +18,7 @@ class eStop : public Module
 
 	private:
 
-        volatile int32_t *ptrTxHeader;
+        volatile uint32_t *ptrTxHeader;
 		const char* 	portAndPin;
 
         Pin *pin;
@@ -26,7 +26,7 @@ class eStop : public Module
 
 	public:
 
-		eStop(volatile int32_t&, const char*);
+		eStop(volatile uint32_t*, const char*);
 
 		virtual void update(void);
 		virtual void slowUpdate(void);

@@ -2,123 +2,35 @@
 
 #include "mbed.h"
 #include "TMCSPI.h"
+#include "arm_irq.h"
 
 
-#define LOG_FILE_NAME "/fs/log.txt"
 
-TMCSPI::TMCSPI(const char* spiType_str, const char* cs_pin_str) : cs_pin(cs_pin_str, OUTPUT, PULLUP) {
-		cs_port = cs_pin.getBus();
+TMCSPI::TMCSPI(const char* miso_pin_str, const char* mosi_pin_str, const char* sck_pin_str, const char* cs_pin_str) :
+        miso(Pin(miso_pin_str, GPIO_MODE_INPUT, GPIO_PULLUP, false)),
+        mosi(Pin(mosi_pin_str, GPIO_MODE_OUTPUT_PP)),
+        sck(Pin(sck_pin_str, GPIO_MODE_OUTPUT_PP)),
+        cs_pin(Pin(cs_pin_str, GPIO_MODE_OUTPUT_PP, GPIO_NOPULL, true, 0)),
+        swSPI(true) {
+            sck.setPin(1);
+        }
+
+
+
+TMCSPI::TMCSPI(const char* spiType_str, const char* cs_pin_str) {
+    cs_pin = Pin(cs_pin_str, GPIO_MODE_OUTPUT_PP, GPIO_NOPULL, true, 0);
     spiType = stringToSPIType(spiType_str);
+    swSPI = false;
+    cs_pin.setPin(1);
     init();
-
-    // Enable DWT for precise timing
-    CoreDebug->DEMCR |= CoreDebug_DEMCR_TRCENA_Msk;
-    DWT->CTRL |= DWT_CTRL_CYCCNTENA_Msk;
-    DWT->CYCCNT = 0;
-    lastTransferTime = 0;
 }
 
-#include "TMCSPI.h"
 
-// Add these timing constants to TMCSPI.h header
-#define CS_SETUP_TIME_US    4    // Time between CS falling edge and first clock edge
-#define CS_HOLD_TIME_US     4    // Time between last clock edge and CS rising edge
-#define CS_MIN_HIGH_TIME_US 10   // Minimum time CS must stay high between transfers
-
-void TMCSPI::SetCSPin() {
-    HAL_GPIO_WritePin(cs_port, cs_pin.getPin(), GPIO_PIN_SET);
-}
-
-void TMCSPI::ResetCSPin() {
-    // Ensure minimum CS high time has elapsed since last transfer
-    cs_pin.initPin();
-}
-
-// Add a helper function for microsecond delays (if not already available)
-void TMCSPI::delayMicroseconds(uint32_t us) {
-    // Calculate the number of cycles needed for the delay
-    uint32_t cycles = (SystemCoreClock / 1000000) * us;
-
-    // Use DWT cycle counter for precise timing
-    CoreDebug->DEMCR |= CoreDebug_DEMCR_TRCENA_Msk;
-    DWT->CYCCNT = 0;
-    DWT->CTRL |= DWT_CTRL_CYCCNTENA_Msk;
-
-    while(DWT->CYCCNT < cycles);
-}
-
-// Function to send data via SPI
-uint8_t TMCSPI::spiSendReceive(uint8_t data) {
-    uint8_t receivedData;
-    HAL_SPI_TransmitReceive(&spiHandle, &data, &receivedData, 1, HAL_MAX_DELAY);
-
-    return receivedData;
-}
 // Function to read from TMC5160
-bool TMCSPI::getError(void)
+bool TMCSPI::isError(void)
 {
-    return SPIdataError;
+    return lastStatus.driver_error;
 }
-
-void TMCSPI::setError(bool error, uint8_t err)
-{
-    SPIdataError = error;
-    errorCode = err;
-    // TODO: handle error codes
-    MBED_ERROR1(MBED_MAKE_ERROR(MBED_MODULE_APPLICATION, MBED_ERROR_CODE_INVALID_ARGUMENT),"TMCSPI Error",0x1243);
-}
-uint8_t TMCSPI::getErrorCode() {
-    return errorCode;
-}
-
-PinName TMCSPI::stringToPinName(const char* gpio_str) {
-    string upperStr = gpio_str;
-    transform(upperStr.begin(), upperStr.end(), upperStr.begin(), ::toupper);
-
-    // Check format starts with 'P'
-    if (upperStr[0] != 'P') {
-        return NC;
-    }
-
-    char port = upperStr[1];
-
-    // Find pin number - handle both "PD5" and "PD_5" formats
-    size_t numStart = (upperStr.find('_') != string::npos) ? 3 : 2;
-    if (numStart >= upperStr.length()) {
-        return NC;
-    }
-
-    // Convert pin number string to integer
-    const char* numStr = upperStr.c_str() + numStart;
-    char* endPtr;
-    long pinNum = strtol(numStr, &endPtr, 10);
-
-    // Check conversion was successful and complete
-    if (endPtr == numStr || *endPtr != '\0' || pinNum < 0 || pinNum > 15) {
-        return NC;
-    }
-
-    // In STM32/mbed, pins are defined as: PIN_PORT(port,pin) = (port << 4) | pin
-    // where port is 0-9 for A-J
-    uint32_t portNum;
-    switch (port) {
-        case 'A': portNum = 0; break;
-        case 'B': portNum = 1; break;
-        case 'C': portNum = 2; break;
-        case 'D': portNum = 3; break;
-        case 'E': portNum = 4; break;
-        case 'F': portNum = 5; break;
-        case 'G': portNum = 6; break;
-        case 'H': portNum = 7; break;
-        case 'I': portNum = 8; break;
-        case 'J': portNum = 9; break;
-        default: return NC;
-    }
-
-    // Calculate pin value: (port << 4) | pin
-    return static_cast<PinName>((portNum << 4) | pinNum);
-}
-
 
 SPI_TypeDef* TMCSPI::stringToSPIType(const char* spiType_str) {
     // Convert string to uppercase for consistent handling
@@ -140,7 +52,7 @@ SPI_TypeDef* TMCSPI::stringToSPIType(const char* spiType_str) {
     }
 
     if (numStart >= cleanStr.length()) {
-        return SPI4; // Default if no number found
+        return SPI1; // Default if no number found
     }
 
     // Convert to number using strtol
@@ -182,208 +94,234 @@ SPI_TypeDef* TMCSPI::stringToSPIType(const char* spiType_str) {
     }
 }
 
-GPIO_TypeDef* TMCSPI::stringToGPIO(const char* pinName) {
-    // Extract port letter from pin string (e.g., "PD_5" -> 'D')
-    if ((pinName[0] == 'P' || pinName[0] == 'p')) {
-        char _ch = pinName[1];
-        char port = toupper(_ch);
-        switch (port) {
-            case 'A':
-                return GPIOA;
-#if defined(GPIOB)
-            case 'B':
-                return GPIOB;
-#endif
-#if defined(GPIOC)
-            case 'C':
-                return GPIOC;
-#endif
-#if defined(GPIOD)
-            case 'D':
-                return GPIOD;
-#endif
-#if defined(GPIOE)
-            case 'E':
-                return GPIOE;
-#endif
-#if defined(GPIOF)
-            case 'F':
-                return GPIOF;
-#endif
-#if defined(GPIOG)
-            case 'G':
-                return GPIOG;
-#endif
-#if defined(GPIOH)
-            case 'H':
-                return GPIOH;
-#endif
-#if defined(GPIOI)
-            case 'I':
-                return GPIOI;
-#endif
-            default:
-                return GPIOA; // Default fallback, though you might want to handle this error case differently
-        }
-     }
-    return GPIOA; // Default fallback
- }
-
 uint8_t TMCSPI::init() {
-    // 1. Enable peripheral clocks first
-    if (spiType == SPI1) {
-        __HAL_RCC_SPI1_CLK_ENABLE();
-    } else if (spiType == SPI4) {
-        __HAL_RCC_SPI4_CLK_ENABLE();
-    }
 
-    // 2. Configure GPIO pins for SPI (keep existing GPIO setup code)
-    GPIO_InitTypeDef GPIO_InitStruct = {0};
-    GPIO_InitStruct.Pin = cs_pin.getPin();
-    GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-    GPIO_InitStruct.Pull = GPIO_NOPULL;
-    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
-    HAL_GPIO_Init(cs_port, &GPIO_InitStruct);
-
-    // 3. Direct SPI configuration for H7 series
-    SPI_TypeDef* spi = spiType;
-
-    // Disable SPI first
-    CLEAR_BIT(spi->CR1, SPI_CR1_SPE);
-
-    // Configure CFG1 register
-    MODIFY_REG(spi->CFG1,
-        SPI_CFG1_MBR | SPI_CFG1_DSIZE | SPI_CFG1_FTHLV,
-        (SPI_BAUDRATEPRESCALER_64)    | // Prescaler
-        (7UL << SPI_CFG1_DSIZE_Pos)   | // 8-bit data size
-        (0UL << SPI_CFG1_FTHLV_Pos));   // FIFO threshold 1 byte
-
-    // Configure CFG2 register
-    MODIFY_REG(spi->CFG2,
-        SPI_CFG2_MASTER | SPI_CFG2_COMM | SPI_CFG2_SSM | SPI_CFG2_CPHA | SPI_CFG2_CPOL,
-        SPI_CFG2_MASTER    | // Master mode
-        (0x1UL << 24)      | // Full-duplex
-        SPI_CFG2_SSM       | // Software slave management
-        SPI_CFG2_CPHA      | // CPHA=1
-        SPI_CFG2_CPOL);      // CPOL=1
-
-    // Set control registers
-    spi->CR1 = SPI_CR1_SSI;  // Internal slave select high
-
-    // Clear all flags
-    SET_BIT(spi->IFCR, 0xFFFFFFFF);
-
-    // Enable SPI
-    SET_BIT(spi->CR1, SPI_CR1_SPE);
-
-    // Set CS pin high initially
-    SetCSPin();
-    delayMicroseconds(CS_MIN_HIGH_TIME_US);
-
-    return ERR_OK;
-}
-
-bool TMCSPI::spiSendReceiveWithRetry(uint8_t data, uint8_t* receivedData) {
-    SPI_TypeDef* spi = spiType;
-    uint32_t startTime = DWT->CYCCNT;
-    uint8_t received;
-
-    // Disable SPI before setting transfer size
-    CLEAR_BIT(spi->CR1, SPI_CR1_SPE);
-
-    // Clear all flags
-    SET_BIT(spi->IFCR, 0xFFFFFFFF);
-
-    // Set transfer size to 1 byte
-    MODIFY_REG(spi->CR2, SPI_CR2_TSIZE, 1);
-
-    // Enable SPI and start transfer
-    SET_BIT(spi->CR1, SPI_CR1_SPE);
-    SET_BIT(spi->CR1, SPI_CR1_CSTART);
-
-    // Wait for TXP (Tx empty) flag
-    while (!(spi->SR & SPI_SR_TXP)) {
-        if ((DWT->CYCCNT - startTime) / (SystemCoreClock / 1000000) > SPI_TIMEOUT_US) {
-            return false;
+        if (spiType == SPI1) {
+            spiH = new SPI(PA_7, PA_6, PA_5, cs_pin.pinToPinName(), {});
         }
-    }
-
-    // Write data
-    *((__IO uint8_t*)&spi->TXDR) = data;
-
-    // Wait for RXWNE or RXPLVL (Rx not empty) flag
-    while (!(spi->SR & (SPI_SR_RXWNE | SPI_SR_RXPLVL))) {
-        if ((DWT->CYCCNT - startTime) / (SystemCoreClock / 1000000) > SPI_TIMEOUT_US) {
-            return false;
+#ifdef SPI2_BASE
+        else if (spiType == SPI2) {
+            spiH = new SPI(PB_15, PB_14, PB_13, cs_pin.pinToPinName(), {});
         }
-    }
+#endif
+#ifdef SPI3_BASE && defined TARGET_STM32F4
+        else if (spiType == SPI3) {
+            spiH = new SPI(PC_12, PC_11, PC_10, cs_pin.pinToPinName(), {});
 
-    // Read received data
-    received = *((__IO uint8_t*)&spi->RXDR);
-
-    // Wait for end of transfer
-    while (!(spi->SR & SPI_SR_EOT)) {
-        if ((DWT->CYCCNT - startTime) / (SystemCoreClock / 1000000) > SPI_TIMEOUT_US) {
-            return false;
         }
-    }
+#endif
+#ifdef SPI3_BASE
+        else if (spiType == SPI3) {
+            spiH = new SPI(PB_5, PB_4, PB_3, cs_pin.pinToPinName(), {});
 
-    // Clear flags
-    SET_BIT(spi->IFCR, 0xFFFFFFFF);
+        }
+#endif
+#ifdef SPI4_BASE
+        else if (spiType == SPI4) {
+            spiH = new SPI(PE_14, PE_13, PE_12, cs_pin.pinToPinName(), {});
 
-    // Store received data if pointer is provided
-    if (receivedData) {
-        *receivedData = received;
-    }
+        }
+#endif
+#ifdef SPI5_BASE
+        else if (spiType == SPI5) {
+            spiH = new SPI(PE_9, PE_8, PE_7, cs_pin.pinToPinName(), {});
 
+        }
+#endif
+
+    spiH->format(8, 0);
+    spiH->frequency(100000);
+    spiH->deselect();
     return true;
 }
 
-void TMCSPI::spiWrite(uint8_t address, uint32_t value) {
-    ResetCSPin();  // CS low
-    delayMicroseconds(CS_SETUP_TIME_US);
-
-    // Send address byte (with write flag set)
-    spiSendReceiveWithRetry(address | 0x80, nullptr);
-
-    // Send data bytes
-    spiSendReceiveWithRetry((value >> 24) & 0xFF, nullptr);
-    spiSendReceiveWithRetry((value >> 16) & 0xFF, nullptr);
-    spiSendReceiveWithRetry((value >> 8) & 0xFF, nullptr);
-    spiSendReceiveWithRetry(value & 0xFF, nullptr);
-
-    delayMicroseconds(CS_HOLD_TIME_US);
-    SetCSPin();  // CS high
-
-    // Minimum time before next transfer
-    delayMicroseconds(CS_MIN_HIGH_TIME_US);
+bool TMCSPI::spi_flush_rx() {
+#if defined(SPI_FLAG_FRLVL)
+    uint8_t count = 0;
+    uint32_t itflag = spiType->SR;
+    __IO uint32_t tmpreg;
+    while ( ((spiType->SR & SPI_FLAG_FRLVL) != SPI_RX_FIFO_0PACKET) || ((itflag & SPI_FLAG_RXWNE) != 0UL)) {
+        count += 4UL;
+        tmpreg = spiType->RXDR;
+        UNUSED(tmpreg);
+        if (count >= 16) {
+            return true;
+        }
+    }
+#endif
+    return false;
 }
 
-uint32_t TMCSPI::spiRead(uint8_t address) {
-    uint32_t value = 0;
-    uint8_t received;
 
-    ResetCSPin();  // CS low
-    delayMicroseconds(CS_SETUP_TIME_US);
+void TMCSPI::swSPITransfer(TMC_spi_datagram *datagram, bool write) {
+    uint8_t data[TMC_PACKET_SIZE] = {0};
+    uint8_t temp[TMC_PACKET_SIZE] = {0}; // Temporary storage for reversing
+    sck.setPin(1);
+    cs_pin.setPin(0);
 
-    // Send address byte (with read flag clear)
-    spiSendReceiveWithRetry(address & 0x7F, nullptr);
+    // Prepare data for write or dummy for read
+    data[0] = datagram->addr.value;
 
-    // Read data bytes
-    spiSendReceiveWithRetry(0, &received);
-    value = ((uint32_t)received << 24);
-    spiSendReceiveWithRetry(0, &received);
-    value |= ((uint32_t)received << 16);
-    spiSendReceiveWithRetry(0, &received);
-    value |= ((uint32_t)received << 8);
-    spiSendReceiveWithRetry(0, &received);
-    value |= received;
+    // Write operation: Reverse bytes in payload
+    for (int i = 0; i < 4; i++) {
+   		data[i + 1] = datagram->payload.data[3 - i];
+    }
 
-    delayMicroseconds(CS_HOLD_TIME_US);
-    SetCSPin();  // CS high
+    // Perform SPI transfer
+    swSPITransferByte(data, TMC_PACKET_SIZE, write);
 
-    // Minimum time before next transfer
-    delayMicroseconds(CS_MIN_HIGH_TIME_US);
+    if (write) {
+        // Read operation: Reverse bytes back into payload
+        for (int i = 0; i < 4; i++) {
+            datagram->payload.data[3 - i] = data[i + 1];
+        }
+    }
 
-    return value;
+    // Update status byte
+    lastStatus.sr = data[0];
+
+    cs_pin.setPin(1);
 }
+
+void TMCSPI::swSPITransferByte(uint8_t *data, size_t len, bool receive_data) {
+
+    for (int t=0;t<len;t++) {
+        uint_fast8_t inbuf = 0;
+        uint8_t buf = *data;
+        for (uint_fast8_t i=0;i<8;i++) {
+            sck.togglePin();
+            mosi.setPin( buf & 0x80);
+            buf <<= 1;
+            sck.togglePin();
+            inbuf <<= 1;
+            inbuf |= miso.readPin();
+        }
+        if (receive_data)
+            *data = inbuf;
+        data++;
+    }
+}
+
+// Modified TMC register access methods
+void TMCSPI::spiWrite(TMC_spi_datagram* dg) {
+
+    // Prepare data buffer
+    dg->addr.write = 1;
+    TMC_spi_datagram *read = new TMC_spi_datagram(0,0);
+    if (swSPI) {
+        swSPITransfer(read,false);
+        swSPITransfer(dg, false);
+    } else {
+#ifndef TARGET_STM32H7
+        spiPrepare();
+#endif
+        spiTransfer(read,false);
+        spiTransfer(dg, false);
+    }
+}
+
+void TMCSPI::spiPrepare() {
+    // The SPE bit must be disabled before changing CPOL/CPHA bits
+    spiType->CR1 = cr1 & ~SPI_CR1_SPE;
+    spiType->CR1; // Force flush of previous write
+    spiType->CR1 = cr1;
+}
+
+
+void TMCSPI::spiRead(TMC_spi_datagram *dg) {
+
+    dg->addr.write=0;
+    TMC_spi_datagram *read = new TMC_spi_datagram(dg->addr.value,0);
+    if (swSPI) {
+        swSPITransfer(read, true);
+        swSPITransfer(dg, true);
+    }
+    else {
+#ifndef TARGET_STM32H7
+        spiPrepare();
+#endif
+        spiTransfer(read, true);
+        spiTransfer(dg, true);
+    }
+
+}
+
+
+void TMCSPI::spiTransfer(TMC_spi_datagram* datagram, bool write)
+{
+
+    spiH->select();
+    uint8_t _len = sizeof(datagram->payload.data) + sizeof(datagram->addr.value);
+    uint8_t *rdata = new uint8_t[_len];
+    uint8_t *data = new uint8_t[_len];
+
+    *data = datagram->addr.value;
+    for (uint8_t i=1;i<_len;i++) { // size of addr is 1
+        *(data+i) = datagram->payload.data[i - 1];
+    }
+
+    notCompleted();
+    spiH->transfer(data, sizeof(data), rdata, sizeof(rdata), callback(this, &TMCSPI::spiCallback), SPI_EVENT_COMPLETE);
+
+    HAL_Delay(55);
+
+    if (write) {
+        for (uint8_t i=1;i<_len;i++) {
+                datagram->payload.data[(_len - (i + 1))] = rdata[i];
+        }
+        lastStatus.sr = rdata[0];
+    }
+    spiH->deselect();
+
+}
+
+void TMCSPI::spiCallback(int spi_event) {
+    if (spi_event == SPI_EVENT_COMPLETE)
+        hasCompleted();
+}
+
+void TMCSPI::spiClockConfig() {
+#if defined SPI1_BASE
+    // Enable SPI clock
+    if (spiType == SPI1) {
+#if defined TARGET_STM32H7
+        SET_BIT(RCC->PLLCFGR, RCC_PLL1_DIVQ);
+#endif
+        spiIRQ = SPI1_IRQn;
+    }
+#endif /* SPI_1 */
+
+#if defined SPI2_BASE
+    if (spiType == SPI2) {
+#if defined TARGET_STM32H7
+        SET_BIT(RCC->PLLCFGR, RCC_PLL1_DIVQ);
+#endif
+        spiIRQ = SPI2_IRQn;
+    }
+#endif /* SPI_IP_VERSION_V2 */
+
+#if defined SPI3_BASE
+    if (spiType == SPI3) {
+#if defined TARGET_STM32H7
+        SET_BIT(RCC->PLLCFGR, RCC_PLL1_DIVQ);
+#endif
+        spiIRQ = SPI3_IRQn;
+    }
+#endif
+#if defined SPI4_BASE
+    if (spiType == SPI4) {
+        spiIRQ = SPI4_IRQn;
+    }
+#endif
+#if defined SPI5_BASE
+    if (spiType == SPI5) {
+        spiIRQ = SPI5_IRQn;
+    }
+#endif
+#if defined SPI6_BASE
+    if (spiType == SPI6) {
+        spiIRQ = SPI6_IRQn;
+    }
+#endif
+}
+

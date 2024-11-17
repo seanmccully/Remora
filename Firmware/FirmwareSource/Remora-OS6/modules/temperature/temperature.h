@@ -31,7 +31,7 @@ class Temperature : public Module
 
   public:
 
-    Temperature(volatile float&, int32_t, int32_t, const char*, const char*, float, int, int);  // Thermistor type constructor
+    Temperature(volatile float*, int32_t, int32_t, const char*, const char*, float, int, int);  // Thermistor type constructor
 
     TempSensor* Sensor;
 

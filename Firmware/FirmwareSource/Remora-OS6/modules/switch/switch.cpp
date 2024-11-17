@@ -1,7 +1,7 @@
 #include "switch.h"
 
 /***********************************************************************
-                MODULE CONFIGURATION AND CREATION FROM JSON     
+                MODULE CONFIGURATION AND CREATION FROM JSON
 ************************************************************************/
 
 unique_ptr<Module> createSwitch(const JsonObject& config) {
@@ -14,18 +14,18 @@ unique_ptr<Module> createSwitch(const JsonObject& config) {
 
     if (!strcmp(mode,"On"))
     {
-        return make_unique<Switch>(sp, txData.processVariable[pv], pin, 1);
+        return make_unique<Switch>(sp, &txData->processVariable[pv], pin, 1);
     }
     else if (!strcmp(mode,"Off"))
     {
-        return make_unique<Switch>(sp, txData.processVariable[pv], pin, 0);
+        return make_unique<Switch>(sp, &txData->processVariable[pv], pin, 0);
     }
     return nullptr;
 }
 
-Switch::Switch(float SP, volatile float &ptrPV, const char* portAndPin, bool mode) :
+Switch::Switch(float SP, volatile float* ptrPV, const char* portAndPin, bool mode) :
 	SP(SP),
-	ptrPV(&ptrPV),
+	ptrPV(ptrPV),
 	portAndPin(portAndPin),
 	mode(mode)
 {

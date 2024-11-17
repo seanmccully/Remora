@@ -34,7 +34,7 @@ class RCServo : public Module
 
 		Pin* servoPin;
 
-		RCServo(volatile float&, const char*, int32_t, int32_t);
+		RCServo(volatile float*, const char*, int32_t, int32_t);
 
 		virtual void update(void);	// Module default interface
 		virtual void slowUpdate();

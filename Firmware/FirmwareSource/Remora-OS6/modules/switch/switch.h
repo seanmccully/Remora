@@ -27,7 +27,7 @@ class Switch : public Module
 
 	public:
 
-		Switch(float, volatile float&, const char*, bool);
+		Switch(float, volatile float*, const char*, bool);
 
 		virtual void update(void);
 		virtual void slowUpdate(void);

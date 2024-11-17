@@ -2,7 +2,7 @@
 
 
 /***********************************************************************
-                MODULE CONFIGURATION AND CREATION FROM JSON     
+                MODULE CONFIGURATION AND CREATION FROM JSON
 ************************************************************************/
 
 unique_ptr<Module> createTemperature(const JsonObject& config) {
@@ -20,7 +20,7 @@ unique_ptr<Module> createTemperature(const JsonObject& config) {
 
         // slow module with 1 hz update
         int updateHz = 1;
-        return make_unique<Temperature>(txData.processVariable[pv], PRU_SERVOFREQ, updateHz, sensor, pinSensor, beta, r0, t0);
+        return make_unique<Temperature>(&txData->processVariable[pv], PRU_SERVOFREQ, updateHz, sensor, pinSensor, beta, r0, t0);
     }
     return nullptr;
 }
@@ -29,9 +29,9 @@ unique_ptr<Module> createTemperature(const JsonObject& config) {
 *                METHOD DEFINITIONS                                    *
 ************************************************************************/
 
-Temperature::Temperature(volatile float &ptrFeedback, int32_t threadFreq, int32_t slowUpdateFreq, const char* sensorType, const char* pinSensor, float beta, int r0, int t0) :
+Temperature::Temperature(volatile float* ptrFeedback, int32_t threadFreq, int32_t slowUpdateFreq, const char* sensorType, const char* pinSensor, float beta, int r0, int t0) :
   Module(threadFreq, slowUpdateFreq),
-  ptrFeedback(&ptrFeedback),
+  ptrFeedback(ptrFeedback),
   sensorType(sensorType),
   pinSensor(pinSensor),
 	beta(beta),

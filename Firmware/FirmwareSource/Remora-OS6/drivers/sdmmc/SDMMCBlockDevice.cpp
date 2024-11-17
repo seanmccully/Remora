@@ -1,14 +1,14 @@
 
 // SDMMCBlockDevice.cpp
 #include "SDMMCBlockDevice.h"
-#include "stm32_hal_legacy.h"
 #include "pinmap.h"
 
-// This is a common pin on BTT Boards, but TODO
-#define SD_CK_PIN PC_12
+// SDMMCBlockDevice Configuration
+
 // Add these defines at the top of the file
 #define SD_CMD_FLUSH_CACHE    32
-#define SD_TIMEOUT            5000  // 5 seconds timeout
+#define SD_TIMEOUT            10000  // 5 seconds timeout
+#define SD_TIMEOUT            0xFFFFFFFF
 #define SD_TRANSFER_OK      0
 #define SD_TRANSFER_BUSY    1
 #define SD_TRANSFER_ERROR   2
@@ -16,9 +16,6 @@
 #define BD_ERROR_NO_INIT -1
 #define BD_ERROR_PARAMETER -2
 #define BD_ERROR_TIMEOUT -3
-// Add these defines at the top of the file if not already present
-
-extern GPIO_TypeDef* Set_GPIO_Clock(uint32_t port_idx);
 
 #if defined SDMMC_FLAG_CMDACT
 #define FLAG_CMDACT SDMMC_FLAG_CMDACT
@@ -54,12 +51,14 @@ extern GPIO_TypeDef* Set_GPIO_Clock(uint32_t port_idx);
     #define SD_BUS_WIDE_4B           SDMMC_BUS_WIDE_4B
     #define SD_HW_FLOW_CTRL_ENABLE   SDMMC_HARDWARE_FLOW_CONTROL_ENABLE
     #define SD_HW_FLOW_CTRL_DISABLE  SDMMC_HARDWARE_FLOW_CONTROL_DISABLE
-    
+#if defined SDMMC_CCCC_ERASE
+    #define SD_CCCC_ERASE SDMMC_CCCC_ERASE
+#endif
     #ifndef SD_CLK_DIV
         #if defined(SDMMC_TRANSFER_CLK_DIV)
             #define SD_CLK_DIV               SDMMC_TRANSFER_CLK_DIV
         #else
-            #define SD_CLK_DIV               SDMMC_NSpeed_CLK_DIV
+            #define SD_CLK_DIV               SDMMC_NSPEED_CLK_DIV
         #endif
     #endif
 
@@ -75,17 +74,14 @@ extern GPIO_TypeDef* Set_GPIO_Clock(uint32_t port_idx);
 #elif defined(SDIO)
   #define SD_INSTANCE              SDIO
   #define SD_CLK_EDGE              SDIO_CLOCK_EDGE_RISING
-  #if defined(SDIO_CLOCK_BYPASS_DISABLE)
-    #define SD_CLK_BYPASS            SDIO_CLOCK_BYPASS_DISABLE
-  #endif
+  #define SD_CLK_BYPASS            SDIO_CLOCK_BYPASS_DISABLE
   #define SD_CLK_PWR_SAVE          SDIO_CLOCK_POWER_SAVE_DISABLE
   #define SD_BUS_WIDE_1B           SDIO_BUS_WIDE_1B
   #define SD_BUS_WIDE_4B           SDIO_BUS_WIDE_4B
   #define SD_HW_FLOW_CTRL_ENABLE   SDIO_HARDWARE_FLOW_CONTROL_ENABLE
   #define SD_HW_FLOW_CTRL_DISABLE  SDIO_HARDWARE_FLOW_CONTROL_DISABLE
-  #ifndef SD_CLK_DIV
-    #define SD_CLK_DIV               SDIO_TRANSFER_CLK_DIV
-  #endif
+  #define SD_CLK_DIV               0U
+
 #else
   #error "Unknown SD_INSTANCE"
 #endif
@@ -99,18 +95,16 @@ extern GPIO_TypeDef* Set_GPIO_Clock(uint32_t port_idx);
 #endif
 
 
-SDMMCBlockDevice::SDMMCBlockDevice(PinName detect_pin) {
-		lock();
-   _is_initialized = false;
-   _capacity_in_blocks = 0;
-   _erase_size = 0;
-   _block_size = 0;
-   _init_ref_count = 0;
-   _cd = detect_pin;
-    memset(&_sd_handle, 0, sizeof(_sd_handle));
-		unlock();
-	  //_sd_handle.Instance = SDMMC1;
-         
+SDMMCBlockDevice::SDMMCBlockDevice(PinName detect_pin) : _cardDetect(detect_pin) {
+    lock();
+    _is_initialized = false;
+    _capacity_in_blocks = 0;
+    _erase_size = 0;
+    _block_size = 0;
+    _init_ref_count = 0;
+    _cd = detect_pin;
+    _sd_handle = new SD_HandleTypeDef();
+    unlock();
 }
 
 SDMMCBlockDevice::~SDMMCBlockDevice()
@@ -125,49 +119,67 @@ int SDMMCBlockDevice::init()
     if (_is_initialized) {
         return BD_ERROR_OK;
     }
-		lock();
+    lock();
 
     int sd_state = BD_ERROR_OK;
     // Initialize pins
   /* Check if SD is not yet initialized */
-    if (_sd_handle.State == HAL_SD_STATE_RESET) {
+    if (_sd_handle->State == HAL_SD_STATE_RESET) {
         /* uSD device interface configuration */
-        _sd_handle.Instance                 = SD_INSTANCE;
-        _sd_handle.Init.ClockEdge           = SD_CLK_EDGE;
+        _sd_handle->Instance                 = SD_INSTANCE;
+        _sd_handle->Init.ClockEdge           = SD_CLK_EDGE;
 #if defined(SD_CLK_BYPASS)
-        _sd_handle.Init.ClockBypass         = SD_CLK_BYPASS;
+        _sd_handle->Init.ClockBypass         = SD_CLK_BYPASS;
 #endif
-        _sd_handle.Init.ClockPowerSave      = SD_CLK_PWR_SAVE;
-        _sd_handle.Init.BusWide             = SD_BUS_WIDE_1B;
-        _sd_handle.Init.HardwareFlowControl = SD_HW_FLOW_CTRL;
-        _sd_handle.Init.ClockDiv            = SD_CLK_DIV;
+        _sd_handle->Init.ClockPowerSave      = SD_CLK_PWR_SAVE;
+        _sd_handle->Init.BusWide             = SD_BUS_WIDE_1B;
+        _sd_handle->Init.HardwareFlowControl = SD_HW_FLOW_CTRL;
+#if defined SDMCC1
+        _sd_handle->Init.ClockDiv            = 0;
+#elif defined SDIO
+        _sd_handle->Init.ClockDiv            = 4;
+#endif
         /* Msp SD initialization */
 
-        //_sd_handle.Init.ClockDiv = _calculate_clock_divider(_freq);
+        //_sd_handle->Init.ClockDiv = _calculate_clock_divider(_freq);
         // Initialize SD interface
-        if (HAL_SD_Init(&_sd_handle) != HAL_OK) {
-						unlock();
+        if (HAL_SD_Init(_sd_handle) != HAL_OK) {
+			unlock();
             return BD_ERROR_DEVICE_ERROR;
         }
+#if defined SDIO
+        sd_state = SDMMC_CmdAppCommand(_sd_handle->Instance, (uint32_t)_sd_handle->SdCard.RelCardAdd << 16U);
+        if (sd_state != HAL_OK) {
+            unlock();
+            return sd_state;
+        }
+        sd_state = SDMMC_CmdBusWidth(_sd_handle->Instance, 2U);
+        _sd_handle->Init.BusWide = SD_BUS_WIDE;
+        SDIO_Init(_sd_handle->Instance, _sd_handle->Init);
+        unlock();
+#elif defined SDMMC1
         /* Configure SD Bus width */
-        if (HAL_SD_ConfigWideBusOperation(&_sd_handle, SD_BUS_WIDE) == HAL_OK) {
+        if (HAL_SD_ConfigWideBusOperation(_sd_handle, SD_BUS_WIDE) == HAL_OK) {
             sd_state = BD_ERROR_OK;
         } else {
-						unlock();
+			unlock();
             return BD_ERROR_PARAMETER;
         }
+#endif
         // Get card info
-        if (HAL_SD_GetCardInfo(&_sd_handle, &_card_info) != HAL_OK) {
-						unlock();
+        if (HAL_SD_GetCardInfo(_sd_handle, &_card_info) != HAL_OK) {
+            unlock();
             return BD_ERROR_DEVICE_ERROR;
         }
-        _block_size = _card_info.BlockSize;
-				_erase_size = _block_size;
+        _block_size         = _card_info.BlockSize;
+		_erase_size         = _block_size;
         _capacity_in_blocks = _card_info.BlockNbr;
-        _is_initialized = true;
+        _sectors = _card_info.LogBlockNbr;
+        _is_initialized     = true;
+
         // Store actual frequency
-        _freq = (uint64_t)HAL_RCCEx_GetPeriphCLKFreq(SD_PERIPHCLK) / 
-                (2U * (_sd_handle.Init.ClockDiv + 1U));        
+        _freq = (uint64_t)HAL_RCCEx_GetPeriphCLKFreq(SD_PERIPHCLK) /
+                (2U * (_sd_handle->Init.ClockDiv + 1U));
     }
 		unlock();
     return sd_state;
@@ -175,13 +187,13 @@ int SDMMCBlockDevice::init()
 
 int SDMMCBlockDevice::deinit()
 {
-		lock();
+	lock();
     if (!_is_initialized) {
         return BD_ERROR_OK;
     }
 
-		_deinit_sdmmc_pins(&_sd_handle);
-    if (HAL_SD_DeInit(&_sd_handle) != HAL_OK) {
+	_deinit_sdmmc_pins(_sd_handle);
+    if (HAL_SD_DeInit(_sd_handle) != HAL_OK) {
         return BD_ERROR_DEVICE_ERROR;
     }
 
@@ -192,6 +204,10 @@ int SDMMCBlockDevice::deinit()
 
 int SDMMCBlockDevice::read(void *buffer, bd_addr_t addr, bd_size_t size)
 {
+    if (!is_present()) {
+        return BD_ERROR_DEVICE_ERROR;
+    }
+
     if (!_is_initialized) {
         return BD_ERROR_DEVICE_ERROR;
     }
@@ -203,27 +219,36 @@ int SDMMCBlockDevice::read(void *buffer, bd_addr_t addr, bd_size_t size)
     if (!is_valid_read(addr, size)) {
         return BD_ERROR_DEVICE_ERROR;
     }
-		lock();
+	lock();
 
     uint32_t block_addr = addr / _block_size;
     uint32_t block_count = size / _block_size;
+    uint32_t *_buffer = static_cast<uint32_t*>(buffer);
 
-    HAL_StatusTypeDef status = HAL_SD_ReadBlocks(&_sd_handle,
-                                                (uint8_t *)buffer,
+    HAL_StatusTypeDef status = HAL_SD_ReadBlocks(_sd_handle,
+                                                (uint8_t *)_buffer,
                                                 block_addr,
                                                 block_count,
                                                 SD_TIMEOUT);
-    
+
     unlock();
+    if (status != HAL_OK) {
+        uint32_t err_status = _sd_handle->ErrorCode;
+        return err_status;
+    }
+
     return status;
 }
 
 int SDMMCBlockDevice::program(const void *buffer, bd_addr_t addr, bd_size_t size)
 {
+    if (!is_present()) {
+        return BD_ERROR_DEVICE_ERROR;
+    }
     if (!is_valid_program(addr, size)) {
         return BD_ERROR_PARAMETER;
     }
-    
+
 		if (buffer == nullptr) {
         return BD_ERROR_DEVICE_ERROR;
     }
@@ -235,9 +260,10 @@ int SDMMCBlockDevice::program(const void *buffer, bd_addr_t addr, bd_size_t size
 
     uint32_t block_addr = addr / _block_size;
     uint32_t block_count = size / _block_size;
+    uint32_t *_buffer = (uint32_t *)(buffer);
 
-    HAL_StatusTypeDef status = HAL_SD_WriteBlocks(&_sd_handle,
-                                                 const_cast<uint8_t*>(static_cast<const uint8_t*>(buffer)),
+    HAL_StatusTypeDef status = HAL_SD_WriteBlocks(_sd_handle,
+                                                 (uint8_t *)_buffer,
                                                  block_addr,
                                                  block_count,
                                                  SD_TIMEOUT);
@@ -282,12 +308,12 @@ int SDMMCBlockDevice::erase(bd_addr_t addr, bd_size_t size)
 	return 0;
 }
 
-bd_size_t SDMMCBlockDevice::get_read_size() const 
+bd_size_t SDMMCBlockDevice::get_read_size() const
 {
     return _block_size;
 }
 
-bd_size_t SDMMCBlockDevice::get_program_size() const 
+bd_size_t SDMMCBlockDevice::get_program_size() const
 {
     return _block_size;
 }
@@ -313,17 +339,17 @@ int SDMMCBlockDevice::get_erase_value() const {
 bd_size_t SDMMCBlockDevice::get_erase_size(bd_addr_t addr) const {
 		return _block_size;
 }
-bd_size_t SDMMCBlockDevice::get_erase_size() const 
+bd_size_t SDMMCBlockDevice::get_erase_size() const
 {
     return _block_size;
 }
 
-bd_size_t SDMMCBlockDevice::size() const 
+bd_size_t SDMMCBlockDevice::size() const
 {
-    return _block_size * _capacity_in_blocks;
+    return _block_size * _sectors;
 }
 
-SDMMCBlockDevice::CardType SDMMCBlockDevice::card_type() 
+SDMMCBlockDevice::CardType SDMMCBlockDevice::card_type()
 {
     if (!_is_initialized) {
         return SDCARD_NONE;
@@ -357,12 +383,13 @@ int SDMMCBlockDevice::_convert_error(HAL_StatusTypeDef status)
     }
 }
 
-bool SDMMCBlockDevice::is_present() 
+bool SDMMCBlockDevice::is_present()
 {
-    if (_cd == NC)
-        return true;
-    DigitalIn card_detect(_cd);
-    return card_detect.read() == 0;  // CD pin is active low
+    uint8_t present = 1;
+    if (_cardDetect.is_connected())
+        present = _cardDetect.read(); // CD pin is active low
+
+    return present == 1;
 }
 
 
@@ -381,11 +408,11 @@ int SDMMCBlockDevice::trim(bd_addr_t addr, bd_size_t size)
         unlock();
         return BD_ERROR_DEVICE_ERROR;
     }
-    
+
 		if (!is_valid_trim(addr, size)) {
         return BD_ERROR_PARAMETER;
     }
-    
+
     lock();
 
 		uint32_t end_block = (addr + size - 1) / _block_size;
@@ -394,7 +421,7 @@ int SDMMCBlockDevice::trim(bd_addr_t addr, bd_size_t size)
     // For SDSC cards (Standard Capacity), the argument should be in bytes
     // For SDHC/SDXC cards (High/Extended Capacity), the argument should be in blocks
     // The HAL drivers handle this conversion internally based on card type
-    HAL_StatusTypeDef status = HAL_SD_Erase(&_sd_handle, addr, end_block);
+    HAL_StatusTypeDef status = HAL_SD_Erase(_sd_handle, addr, end_block);
 
     // Wait for the card to complete the erase operation
     uint32_t timeout = HAL_GetTick() + SD_TIMEOUT;
@@ -414,7 +441,7 @@ int SDMMCBlockDevice::trim(bd_addr_t addr, bd_size_t size)
 uint8_t SDMMCBlockDevice::BSP_SD_GetCardState(void)
 {
     HAL_SD_CardStateTypeDef card_state;
-    card_state = HAL_SD_GetCardState(&_sd_handle);
+    card_state = HAL_SD_GetCardState(_sd_handle);
 
     if (card_state == HAL_SD_CARD_TRANSFER) {
         return SD_TRANSFER_OK;
@@ -435,29 +462,29 @@ int SDMMCBlockDevice::frequency(uint64_t freq)
 
     // Calculate appropriate clock divider
     uint32_t clk_div = _calculate_clock_divider(freq);
-    
+
     // Store current state
-    uint32_t old_clk_div = _sd_handle.Init.ClockDiv;
-    
+    uint32_t old_clk_div = _sd_handle->Init.ClockDiv;
+
     // Disable SDMMC peripheral
-    HAL_SD_DeInit(&_sd_handle);
-    
+    HAL_SD_DeInit(_sd_handle);
+
     // Update clock divider
-    _sd_handle.Init.ClockDiv = clk_div;
-    
+    _sd_handle->Init.ClockDiv = clk_div;
+
     // Apply new clock configuration
-    HAL_StatusTypeDef status = HAL_SD_InitCard(&_sd_handle);
-    
+    HAL_StatusTypeDef status = HAL_SD_InitCard(_sd_handle);
+
     if (status != HAL_OK) {
         // Restore old settings on failure
-        _sd_handle.Init.ClockDiv = old_clk_div;
-        HAL_SD_InitCard(&_sd_handle);
+        _sd_handle->Init.ClockDiv = old_clk_div;
+        HAL_SD_InitCard(_sd_handle);
         return BD_ERROR_DEVICE_ERROR;
     }
-    
+
     // Store actual frequency
     _freq = (uint64_t)HAL_RCCEx_GetPeriphCLKFreq(SD_PERIPHCLK) / (2U * (clk_div + 1U));
-    
+
     return BD_ERROR_OK;
 }
 
@@ -470,28 +497,28 @@ uint32_t SDMMCBlockDevice::_calculate_clock_divider(uint64_t freq)
 {
     // Get SDMMC kernel clock
     uint32_t sdmmc_ker_ck = HAL_RCCEx_GetPeriphCLKFreq(SD_PERIPHCLK);
-    
+
     // SDMMC actual clock = SDMMC_CK / (2 * CLKDIV)
     // CLKDIV = (SDMMC_CK / (2 * target_freq)) - 1
-    
+
     uint32_t div;
     if (freq >= sdmmc_ker_ck / 2) {
         // Maximum frequency, minimum divider
         div = 0;
     } else {
         div = (sdmmc_ker_ck / (2 * freq)) - 1;
-        
+
         // STM32H7 SDMMC divider is 8-bit
         if (div > 255) {
             div = 255;  // Maximum divider
         }
     }
-    
+
     return div;
 }
 
 void SDMMCBlockDevice::debug(bool dbg) {
-   dbg = false; 
+   dbg = false;
 }
 
 // SDMMCBlockDevice.cpp
@@ -507,7 +534,7 @@ int SDMMCBlockDevice::sync()
 
     do {
         // Get current card state
-        card_state = HAL_SD_GetCardState(&_sd_handle);
+        card_state = HAL_SD_GetCardState(_sd_handle);
 
         // Check for errors
         if (card_state == HAL_SD_CARD_ERROR) {
@@ -526,11 +553,11 @@ int SDMMCBlockDevice::sync()
 
     // Once in transfer state, ensure the data is flushed
 #if defined SDIO_FLAG_RXACT
-    if (_sd_handle.Instance->STA & (SDIO_FLAG_RXACT | FLAG_CMDACT)) {
+    if (_sd_handle->Instance->STA & (SDIO_FLAG_RXACT | FLAG_CMDACT)) {
         // Wait for any ongoing data or command operations
         uint32_t timeout = HAL_GetTick() + SD_TIMEOUT;
-        
-        while (_sd_handle.Instance->STA & (SDIO_FLAG_RXACT | FLAG_CMDACT)) {
+
+        while (_sd_handle->Instance->STA & (SDIO_FLAG_RXACT | FLAG_CMDACT)) {
             if (HAL_GetTick() >= timeout) {
                 return BD_ERROR_TIMEOUT;
             }
@@ -539,8 +566,8 @@ int SDMMCBlockDevice::sync()
 #endif
 
     // For cards that support it, issue a FLUSH_CACHE command (CMD32)
-#if defined(SDMMC_CCCC_ERASE)
-    if (_card_info.Class & SDMMC_CCCC_ERASE) {  // Check if card supports switch commands
+#if defined(SD_CCCC_ERASE) && defined SDMMC1
+    if (_card_info.Class & SD_CCCC_ERASE) {  // Check if card supports switch commands
         // Create command configuration for flush cache
         SDMMC_CmdInitTypeDef cmd_config = {0};
         cmd_config.Argument = 0;
@@ -553,7 +580,7 @@ int SDMMCBlockDevice::sync()
         if (SDMMC_SendCommand(SDMMC1, &cmd_config) == HAL_OK) {
             // Wait for command completion
             uint32_t timeout = HAL_GetTick() + SD_TIMEOUT;
-            while (_sd_handle.Instance->STA & FLAG_CMDACT) {
+            while (_sd_handle->Instance->STA & FLAG_CMDACT) {
                 if (HAL_GetTick() >= timeout) {
                     return BD_ERROR_TIMEOUT;
                 }
@@ -573,30 +600,69 @@ int SDMMCBlockDevice::sync()
 void HAL_SD_MspInit(SD_HandleTypeDef *hsd) {
     GPIO_InitTypeDef GPIO_InitStruct = {0};
 		/* Enable SDIO clock */
-		__HAL_RCC_SDMMC1_CLK_ENABLE();
-		
+#if defined SDMMC1
+        if (hsd->Instance == SDMMC1)
+	    	__HAL_RCC_SDMMC1_CLK_ENABLE();
+#elif defined SDIO
+        if (hsd->Instance == SDIO) {
+			RCC_PeriphCLKInitTypeDef PeriphClkInit = {0};
+
+			PeriphClkInit.PeriphClockSelection = RCC_PERIPHCLK_SDIO;
+			PeriphClkInit.SdioClockSelection = RCC_SDIOCLKSOURCE_CLK48; // Use PLL48CLK as the clock source
+
+			if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInit) != HAL_OK) {
+				// Handle Error
+				return;
+			}
+    		__HAL_RCC_SDIO_CLK_ENABLE();
+        }
+#endif
+
 		/* Enable GPIOs clocks */
 		__HAL_RCC_GPIOC_CLK_ENABLE();
 		__HAL_RCC_GPIOD_CLK_ENABLE();
 
 		/* Common GPIO configuration */
+		GPIO_InitStruct.Pin = GPIO_PIN_8 | GPIO_PIN_9 | GPIO_PIN_10 | GPIO_PIN_11 | GPIO_PIN_12;
 		GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
 		GPIO_InitStruct.Pull = GPIO_PULLUP;
 		GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
-
 		/* STM32 family specific configuration */
-		GPIO_InitStruct.Alternate = GPIO_AF12_SDMMC1;
-		GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
-		
-		GPIO_InitStruct.Pin = GPIO_PIN_8 | GPIO_PIN_9 | GPIO_PIN_10 | GPIO_PIN_11 | GPIO_PIN_12;
+#if defined SDMMC1
+        if (hsd->Instance == SDMMC1)
+    		GPIO_InitStruct.Alternate = GPIO_AF12_SDMMC1;
+#elif defined SDIO
+        if (hsd->Instance == SDIO)
+    		GPIO_InitStruct.Alternate = GPIO_AF12_SDIO;
+#endif
+
 		HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
-		
+
 		GPIO_InitStruct.Pin = GPIO_PIN_2;
+		GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
+		GPIO_InitStruct.Pull = GPIO_PULLUP;
+		GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
+#if defined SDMMC1
+        if (hsd->Instance == SDMMC1)
+    		GPIO_InitStruct.Alternate = GPIO_AF12_SDMMC1;
+#elif defined SDIO
+        if (hsd->Instance == SDIO)
+    		GPIO_InitStruct.Alternate = GPIO_AF12_SDIO;
+#endif
 		HAL_GPIO_Init(GPIOD, &GPIO_InitStruct);
 
 		/* NVIC configuration for SDIO interrupts */
-		HAL_NVIC_SetPriority(SDMMC1_IRQn, 5, 0);
-		HAL_NVIC_EnableIRQ(SDMMC1_IRQn);
+#if defined SDMCC1
+        if (hsd->Instance == SDMMC1) {
+		    HAL_NVIC_SetPriority(SDMMC1_IRQn, 5, 0);
+		    HAL_NVIC_EnableIRQ(SDMMC1_IRQn);
+        }
+#elif defined SDIO
+        if (hsd->Instance == SDIO) {
+		    HAL_NVIC_SetPriority(SDIO_IRQn, 0, 0);
+            HAL_NVIC_EnableIRQ(SDIO_IRQn);
+        }
+#endif
 }
 
 void HAL_SD_MspDeInit(SD_HandleTypeDef *hsd) {
@@ -609,6 +675,9 @@ void HAL_SD_MspDeInit(SD_HandleTypeDef *hsd) {
         HAL_GPIO_DeInit(GPIOD, GPIO_PIN_2);
 
         /* Disable NVIC for SDIO interrupts */
+#if defined SDMMC1
         HAL_NVIC_DisableIRQ(SDMMC1_IRQn);
-
+#elif defined SDIO
+        HAL_NVIC_DisableIRQ(SDIO_IRQn);
+#endif
 }

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "TMCSPI.h"
 
 namespace TMC5160_n {
 
@@ -7,7 +8,7 @@ namespace TMC5160_n {
     union {
       uint32_t sr;
       struct {
-          uint8_t
+          uint32_t
           reset_flag       : 1,
           driver_error     : 1,
           sg2              : 1,
@@ -15,7 +16,8 @@ namespace TMC5160_n {
           velocity_reached : 1,
           position_reached : 1,
           status_stop_l    : 1,
-          status_stop_r    : 1;
+          status_stop_r    : 1,
+          reserved         : 22;
       };
     };
   };
@@ -47,22 +49,30 @@ namespace TMC5160_n {
       };
     };
 	        // Constructors
-        GCONF_t() {  }  // Default value from datasheet
+        GCONF_t() { sr = 0x00000008; }  // Default value from datasheet
         GCONF_t(uint32_t val) { sr = val; }
-
         // Conversion operator
         operator uint32_t() const { return sr; }
+        operator TMC_spi_datagram_t() const { return TMC_spi_datagram_t(address,sr); }
   };
 
   struct GSTAT_t {
     constexpr static uint8_t address = 0x01;
     union {
-      uint8_t sr : 3;
+      uint32_t sr;
       struct {
-          bool reset    : 1,
-               drv_err  : 1;
+          uint32_t
+               reset     : 1,
+               drv_err   : 1,
+               uv_cp     : 1,
+               reserverd : 28;
       };
     };
+        GSTAT_t() { sr = 0x0000000; }  // Default value from datasheet
+        GSTAT_t(uint32_t val) { sr = val; }
+        // Conversion operator
+        operator uint32_t() const { return sr; }
+        operator TMC_spi_datagram_t() const { return TMC_spi_datagram_t(address,sr); }
   };
 
   // IFCNT : R
@@ -75,17 +85,30 @@ namespace TMC5160_n {
                    reserved    : 24; // Reserved bits
       };
     };
+		IFCNT_t() { sr = 0x0000000; }  // Default value from datasheet
+		IFCNT_t(uint32_t val) { sr = val; }
+		// Conversion operator
+		operator uint32_t() const { return sr; }
+		operator TMC_spi_datagram_t() const { return TMC_spi_datagram_t(address,sr); }
   };
 
   struct SLAVECONF_t {
     constexpr static uint8_t address = 0x03;
     union {
-      uint16_t sr : 12;
+      uint32_t sr;
       struct {
-          uint8_t slaveaddr : 8;
-          uint8_t senddelay : 4;
+           uint32_t
+           slaveaddr : 8,
+           senddelay : 4,
+           reserved  : 20;
+
       };
     };
+		SLAVECONF_t() { sr = 0x0000000; }  // Default value from datasheet
+		SLAVECONF_t(uint32_t val) { sr = val; }
+		// Conversion operator
+		operator uint32_t() const { return sr; }
+		operator TMC_spi_datagram_t() const { return TMC_spi_datagram_t(address,sr); }
   };
 
   struct IOIN_t {
@@ -93,19 +116,24 @@ namespace TMC5160_n {
     union {
       uint32_t sr;
       struct {
-          bool refl_step       : 1,
-               reserved_1     : 1, // Reserved bit
-               refl_dir        : 1,
-               encb_den_cfg4   : 1,
-               encb_den_cfg5   : 1,
-               drv_enn         : 1,
-               reserved_2     : 1, // Reserved bit
-               encb_den_cfg6   : 1,
-               swcomp_in       : 1;
-          uint16_t reserved_3 : 14; // Reserved bits
-          uint8_t version     : 8;
+            uint32_t
+               refl_step        : 1,
+               refl_dir         : 1,
+               encb_den_cfg4    : 1,
+               encb_din_cfg5    : 1,
+               drv_enn          : 1,
+               enc_n_dco_cfg6   : 1,
+               sd_mode          : 1,
+               swcomp_in        : 1,
+              reserved_3        : 16, // Reserved bits
+                  version       : 8;
       };
     };
+		IOIN_t() { sr = 0x0000000; }  // Default value from datasheet
+		IOIN_t(uint32_t val) { sr = val; }
+		// Conversion operator
+		operator uint32_t() const { return sr; }
+		operator TMC_spi_datagram_t() const { return TMC_spi_datagram_t(address,sr); }
   };
 
   // OUTPUT : W
@@ -118,6 +146,11 @@ namespace TMC5160_n {
                    version     : 31;
       };
     };
+		OUTPUT_t() { sr = 0x0000000; }  // Default value from datasheet
+		OUTPUT_t(uint32_t val) { sr = val; }
+		// Conversion operator
+		operator uint32_t() const { return sr; }
+		operator TMC_spi_datagram_t() const { return TMC_spi_datagram_t(address,sr); }
   };
 
   // X_COMPARE : W
@@ -129,6 +162,11 @@ namespace TMC5160_n {
           uint32_t x_compare;
       };
     };
+		X_COMPARE_t() { sr = 0x0000000; }  // Default value from datasheet
+		X_COMPARE_t(uint32_t val) { sr = val; }
+		// Conversion operator
+		operator uint32_t() const { return sr; }
+		operator TMC_spi_datagram_t() const { return TMC_spi_datagram_t(address,sr); }
   };
 
   // OTP_PROG : W
@@ -143,6 +181,10 @@ namespace TMC5160_n {
                    reserved2 : 16; // Reserved bits
       };
     };
+		OTP_PROG_t() { sr = 0x0000000; }  // Default value from datasheet
+		OTP_PROG_t(uint32_t val) { sr = val; }
+		// Conversion operator
+		operator uint32_t() const { return sr; }
   };
 
   // OTP_READ : R
@@ -158,6 +200,11 @@ namespace TMC5160_n {
                    reserved  : 24; // Reserved bits
       };
     };
+		OTP_READ_t() { sr = 0x0000000; }  // Default value from datasheet
+		OTP_READ_t(uint32_t val) { sr = val; }
+		// Conversion operator
+		operator uint32_t() const { return sr; }
+		operator TMC_spi_datagram_t() const { return TMC_spi_datagram_t(address,sr); }
   };
 
   // FACTORY_CONF : RW
@@ -170,6 +217,11 @@ namespace TMC5160_n {
                    reserved : 27; // Reserved bits
       };
     };
+		FACTORY_CONF_t() { sr = 0x0000000; }  // Default value from datasheet
+		FACTORY_CONF_t(uint32_t val) { sr = val; }
+		// Conversion operator
+		operator uint32_t() const { return sr; }
+		operator TMC_spi_datagram_t() const { return TMC_spi_datagram_t(address,sr); }
   };
 
   // SHORT_CONF : W
@@ -187,6 +239,11 @@ namespace TMC5160_n {
                    reserved_3 : 13; // Reserved bits
       };
     };
+		SHORT_CONF_t() { sr = 0x0000000; }  // Default value from datasheet
+		SHORT_CONF_t(uint32_t val) { sr = val; }
+		// Conversion operator
+		operator uint32_t() const { return sr; }
+		operator TMC_spi_datagram_t() const { return TMC_spi_datagram_t(address,sr); }
   };
 
   // DRV_CONF : W
@@ -200,11 +257,16 @@ namespace TMC5160_n {
                    bbmclks     : 4,
                    reserved_2  : 4, // Reserved bits
                    otselect    : 2,
-                   drvstrenght : 2,
+                   drvstrength : 2,
                    filt_isense : 2,
                    reserved_3  : 10; // Reserved bits
       };
     };
+		DRV_CONF_t() { sr = 0x0000000; }  // Default value from datasheet
+		DRV_CONF_t(uint32_t val) { sr = val; }
+		// Conversion operator
+		operator uint32_t() const { return sr; }
+		operator TMC_spi_datagram_t() const { return TMC_spi_datagram_t(address,sr); }
   };
 
   // GLOBAL_SCALER : W
@@ -217,6 +279,11 @@ namespace TMC5160_n {
                    reserved  : 24; // Reserved bits
       };
     };
+		GLOBAL_SCALER_t() { sr = 0x0000000; }  // Default value from datasheet
+		GLOBAL_SCALER_t(uint32_t val) { sr = val; }
+		// Conversion operator
+		operator uint32_t() const { return sr; }
+		operator TMC_spi_datagram_t() const { return TMC_spi_datagram_t(address,sr); }
   };
 
   // OFFSET_READ : R
@@ -230,6 +297,11 @@ namespace TMC5160_n {
                    reserved : 20; // Reserved bits
       };
     };
+		OFFSET_READ_t() { sr = 0x0000000; }  // Default value from datasheet
+		OFFSET_READ_t(uint32_t val) { sr = val; }
+		// Conversion operator
+		operator uint32_t() const { return sr; }
+		operator TMC_spi_datagram_t() const { return TMC_spi_datagram_t(address,sr); }
   };
 
   // IHOLD_IRUN : R
@@ -246,6 +318,11 @@ namespace TMC5160_n {
                    reserved_3 : 12; // Reserved bits
       };
     };
+		IHOLD_IRUN_t() { sr = 0x0000000; }  // Default value from datasheet
+		IHOLD_IRUN_t(uint32_t val) { sr = val; }
+		// Conversion operator
+		operator uint32_t() const { return sr; }
+		operator TMC_spi_datagram_t() const { return TMC_spi_datagram_t(address,sr); }
   };
 
   struct TPOWERDOWN_t {
@@ -253,10 +330,15 @@ namespace TMC5160_n {
     union {
       uint32_t sr;
       struct {
-          uint32_t tstep    : 8,
+          uint32_t tpowerdown    : 8,
                    reserved : 24; // Reserved bits
       };
     };
+		TPOWERDOWN_t() { sr = 0x0; }  // Default value from datasheet
+		TPOWERDOWN_t(uint32_t val) { sr = val; }
+		// Conversion operator
+		operator uint32_t() const { return sr; }
+		operator TMC_spi_datagram_t() const { return TMC_spi_datagram_t(address,sr); }
   };
 
   // TSTEP : R
@@ -269,6 +351,11 @@ namespace TMC5160_n {
                    reserved : 12; // Reserved bits
       };
     };
+		TSTEP_t() { sr = 0x0; }  // Default value from datasheet
+		TSTEP_t(uint32_t val) { sr = val; }
+		// Conversion operator
+		operator uint32_t() const { return sr; }
+		operator TMC_spi_datagram_t() const { return TMC_spi_datagram_t(address,sr); }
   };
 
   struct TPWMTHRS_t {
@@ -280,6 +367,11 @@ namespace TMC5160_n {
                    reserved : 12; // Reserved bits
       };
     };
+		TPWMTHRS_t() { sr = 0x0; }  // Default value from datasheet
+		TPWMTHRS_t(uint32_t val) { sr = val; }
+		// Conversion operator
+		operator uint32_t() const { return sr; }
+		operator TMC_spi_datagram_t() const { return TMC_spi_datagram_t(address,sr); }
   };
 
   struct TCOOLTHRS_t {
@@ -291,6 +383,11 @@ namespace TMC5160_n {
                    reserved  : 12; // Reserved bits
       };
     };
+		TCOOLTHRS_t() { sr = 0x0; }  // Default value from datasheet
+		TCOOLTHRS_t(uint32_t val) { sr = val; }
+		// Conversion operator
+		operator uint32_t() const { return sr; }
+		operator TMC_spi_datagram_t() const { return TMC_spi_datagram_t(address,sr); }
   };
 
   struct THIGH_t {
@@ -302,6 +399,11 @@ namespace TMC5160_n {
                    reserved : 12; // Reserved bits
       };
     };
+		THIGH_t() { sr = 0x0; }  // Default value from datasheet
+		THIGH_t(uint32_t val) { sr = val; }
+		// Conversion operator
+		operator uint32_t() const { return sr; }
+		operator TMC_spi_datagram_t() const { return TMC_spi_datagram_t(address,sr); }
   };
 
   struct VDCMIN_t {
@@ -313,6 +415,11 @@ namespace TMC5160_n {
                    reserved : 9; // Reserved bits
       };
     };
+		VDCMIN_t() { sr = 0x0; }  // Default value from datasheet
+		VDCMIN_t(uint32_t val) { sr = val; }
+		// Conversion operator
+		operator uint32_t() const { return sr; }
+		operator TMC_spi_datagram_t() const { return TMC_spi_datagram_t(address,sr); }
   };
 
   // MSLUTn : W
@@ -324,6 +431,11 @@ namespace TMC5160_n {
           uint32_t mte : 32;
       };
     };
+		MSLUTn_t() { sr = 0x0; }  // Default value from datasheet
+		MSLUTn_t(uint32_t val) { sr = val; }
+		// Conversion operator
+		operator uint32_t() const { return sr; }
+		operator TMC_spi_datagram_t() const { return TMC_spi_datagram_t(address,sr); }
   };
 
   // MSLUTSEL : W
@@ -341,6 +453,11 @@ namespace TMC5160_n {
                    x3 : 8;
       };
     };
+		MSLUTSEL_t() { sr = 0x0; }  // Default value from datasheet
+		MSLUTSEL_t(uint32_t val) { sr = val; }
+		// Conversion operator
+		operator uint32_t() const { return sr; }
+		operator TMC_spi_datagram_t() const { return TMC_spi_datagram_t(address,sr); }
   };
 
   // MSLUTSTART : W
@@ -355,6 +472,11 @@ namespace TMC5160_n {
                    reserved_2 : 8; // Reserved bits
       };
     };
+		MSLUTSTART_t() { sr = 0x0; }  // Default value from datasheet
+		MSLUTSTART_t(uint32_t val) { sr = val; }
+		// Conversion operator
+		operator uint32_t() const { return sr; }
+		operator TMC_spi_datagram_t() const { return TMC_spi_datagram_t(address,sr); }
   };
 
   // MSCNT : R
@@ -367,6 +489,11 @@ namespace TMC5160_n {
                    reserved  : 22; // Reserved bits
       };
     };
+		MSCNT_t() { sr = 0x0; }  // Default value from datasheet
+		MSCNT_t(uint32_t val) { sr = val; }
+		// Conversion operator
+		operator uint32_t() const { return sr; }
+		operator TMC_spi_datagram_t() const { return TMC_spi_datagram_t(address,sr); }
   };
 
   // MSCURACT : R
@@ -381,6 +508,11 @@ namespace TMC5160_n {
                    reserved_2 : 7; // Reserved bits
       };
     };
+		MSCURACT_t() { sr = 0x0; }  // Default value from datasheet
+		MSCURACT_t(uint32_t val) { sr = val; }
+		// Conversion operator
+		operator uint32_t() const { return sr; }
+		operator TMC_spi_datagram_t() const { return TMC_spi_datagram_t(address,sr); }
   };
 
   struct CHOPCONF_t {
@@ -388,30 +520,32 @@ namespace TMC5160_n {
     union {
       uint32_t sr;
       struct {
-          uint8_t  toff       : 4,
+          uint32_t
+                   toff       : 4,
                    hstrt      : 3,
-                   hend       : 4;
-          bool     fd3        : 1,
+                   hend       : 4,
+                   fd3        : 1,
                    disfdcc    : 1,
                    reserved_1 : 1, // Reserved bit
-                   chm        : 1;
-          uint8_t  tbl        : 2,
-                   reserved_2 : 1; // Reserved bit
-          bool     vhighfs    : 1,
-                   vhighchm   : 1;
-          uint8_t  tpfd       : 4,
+                   chm        : 1,
+                   tbl        : 2,
+                   reserved_2 : 1, // Reserved bit
+                   vhighfs    : 1,
+                   vhighchm   : 1,
+                   tpfd       : 4,
                    mres       : 4,
                    intpol     : 1,
-                   dedge      : 1;
-          bool     diss2g     : 1,
+                   dedge      : 1,
+                   diss2g     : 1,
                    diss2vs    : 1;
       };
     };
         // Constructors
-        CHOPCONF_t() { sr = 0x00000000; }  // Default value from datasheet
-        CHOPCONF_t(uint32_t val) { sr = val; }
-        // Conversion operator
-        operator uint32_t() const { return sr; }
+		CHOPCONF_t() { sr = 0x00000000; }  // Default value from datasheet
+		CHOPCONF_t(uint32_t val) { sr = val; }
+		// Conversion operator
+		operator uint32_t() const { return sr; }
+		operator TMC_spi_datagram_t() const { return TMC_spi_datagram_t(address,sr); }
   };
 
   struct COOLCONF_t {
@@ -433,12 +567,12 @@ namespace TMC5160_n {
                    reserved_5 : 7; // Reserved bits
       };
     };
-
-        // Constructors
-        COOLCONF_t() { sr = 0x00000000; }  // Default value from datasheet
-        COOLCONF_t(uint32_t val) { sr = val; }
-        // Conversion operator
-        operator uint32_t() const { return sr; }
+		// Constructors
+		COOLCONF_t() { sr = 0x00000000; }  // Default value from datasheet
+		COOLCONF_t(uint32_t val) { sr = val; }
+		// Conversion operator
+		operator uint32_t() const { return sr; }
+		operator TMC_spi_datagram_t() const { return TMC_spi_datagram_t(address,sr); }
   };
 
   // DCCTRL : W
@@ -453,6 +587,12 @@ namespace TMC5160_n {
                    reserved_2 : 8; // Reserved bits
       };
     };
+		// Constructors
+		DCCTRL_t() { sr = 0x00000000; }  // Default value from datasheet
+		DCCTRL_t(uint32_t val) { sr = val; }
+		// Conversion operator
+		operator uint32_t() const { return sr; }
+		operator TMC_spi_datagram_t() const { return TMC_spi_datagram_t(address,sr); }
   };
 
   // DRV_STATUS : R
@@ -484,6 +624,7 @@ namespace TMC5160_n {
     DRV_STATUS_t(uint32_t val) { sr = val; }
     // Conversion operator
     operator uint32_t() const { return sr; }
+		operator TMC_spi_datagram_t() const { return TMC_spi_datagram_t(address,sr); }
   };
 
   struct PWMCONF_t {
@@ -493,10 +634,10 @@ namespace TMC5160_n {
       struct {
           uint32_t pwm_ofs     : 8,
                    pwm_grad    : 8,
-                   pwm_freq    : 2;
-          bool pwm_autoscale   : 1,
-               pwm_autograd    : 1;
-          uint32_t freewheel   : 2,
+                   pwm_freq    : 2,
+               pwm_autoscale   : 1,
+               pwm_autograd    : 1,
+                   freewheel   : 2,
                    reserved_1  : 2, // Reserved bits
                    pwm_reg     : 4,
                    pwm_lim     : 4;
@@ -507,6 +648,7 @@ namespace TMC5160_n {
     PWMCONF_t(uint32_t val) { sr = val; }
     // Conversion operator
     operator uint32_t() const { return sr; }
+		operator TMC_spi_datagram_t() const { return TMC_spi_datagram_t(address,sr); }
   };
 
   struct PWM_SCALE_t {
@@ -520,6 +662,11 @@ namespace TMC5160_n {
                    reserved_2      : 7; // Reserved bits
       };
     };
+    PWM_SCALE_t() { sr = 0x00000000; }
+    PWM_SCALE_t(uint32_t val) { sr = val; }
+    // Conversion operator
+    operator uint32_t() const { return sr; }
+		operator TMC_spi_datagram_t() const { return TMC_spi_datagram_t(address,sr); }
   };
 
   struct PWM_AUTO_t {
@@ -533,6 +680,11 @@ namespace TMC5160_n {
                    reserved_2   : 8; // Reserved bits
       };
     };
+    PWM_AUTO_t() { sr = 0x00000000; }
+    PWM_AUTO_t(uint32_t val) { sr = val; }
+    // Conversion operator
+    operator uint32_t() const { return sr; }
+		operator TMC_spi_datagram_t() const { return TMC_spi_datagram_t(address,sr); }
   };
 
   struct LOST_STEPS_t {
@@ -544,6 +696,11 @@ namespace TMC5160_n {
                    reserved   : 12; // Reserved bits
       };
     };
+    LOST_STEPS_t() { sr = 0x00000000; }
+    LOST_STEPS_t(uint32_t val) { sr = val; }
+    // Conversion operator
+    operator uint32_t() const { return sr; }
+		operator TMC_spi_datagram_t() const { return TMC_spi_datagram_t(address,sr); }
   };
 
   struct CONFIG_t {
@@ -562,6 +719,7 @@ namespace TMC5160_n {
       GCONF_t           gconf;
       GSTAT_t           gstat;
       IOIN_t            ioin;
+      DRV_CONF_t        drv_conf;
       GLOBAL_SCALER_t   global_scaler;
       IHOLD_IRUN_t      ihold_irun;
       TPOWERDOWN_t      tpowerdown;
@@ -591,35 +749,6 @@ namespace TMC5160_n {
       STATUS_t          driver_status;
       CONFIG_t config;
   };
-  typedef union {
-      uint8_t value;
-      struct {
-          uint8_t
-          idx   :7,
-          write :1;
-      };
-  } TMC_addr_t;
-
-  typedef union {
-      uint32_t value;
-      uint8_t data[4];
-  } TMC_payload_t;
-
-
-  typedef struct {
-    TMC_addr_t addr;
-    TMC_payload_t payload;
-  } TMC_spi_datagram_t;
-
-  typedef union {
-    uint8_t value;
-    struct {
-        uint8_t
-        idx   :7,  // Register index/address
-        write :1;  // Write flag (1 for write, 0 for read)
-    };
-  } tmc5160_regaddr_t;
-
 
 } //namespace
 //////////////////////////////////////////////////////

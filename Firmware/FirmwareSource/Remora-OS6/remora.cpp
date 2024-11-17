@@ -1,44 +1,33 @@
 
 #include "remora.h"
+#include "irqHandlers.h"
 
-
-#if defined TARGET_SKRV3
-#define CAN_TX PB_9
-#define CAN_RX PB_8
-#elif defined TARGET_OCTOPUS_446
-#define CAN_RX PD_0
-#define CAN_TX PD_1
-#endif
-
-Remora::Remora() 
+Remora::Remora()
     {
-        this->comms = new RemoraCAN(ptrRxData, ptrTxData, CAN_RX, CAN_TX);
         this->configHandler = new JsonConfigHandler();
-        initializeSystem();
+
+        baseThread = make_unique<pruThread>("Base", TIM3, TIM3_IRQn, base_freq, (uint32_t)TIM3_IRQHandler, 2);
+        servoThread = make_unique<pruThread>("Servo", TIM5, TIM5_IRQn, servo_freq, (uint32_t)TIM5_IRQHandler, 3);
+
+        transitionState(State::ST_SETUP);
+        handleState();
     }
 
 bool Remora::initialize() {
-
-    createThreadObjects();
-    loadModules();
-
+    initializeSystem(); // Setup system
+    loadModules(); // Read the config, and load modules.
+    transitionState(State::ST_START); // Transition
     return true;
 }
 
 void Remora::initializeSystem() {
+    comms = new RemoraCAN(rxData, txData, CAN_RX, CAN_TX);
+    comms->initializeCAN(); // attach rx Message handler
     configError = false;
     threadsRunning = false;
     base_freq = PRU_BASEFREQ;
     servo_freq = PRU_SERVOFREQ;
-    comms_freq = PRU_SERVOFREQ;
 }
-
-void Remora::createThreadObjects() {
-        threadMap["Base"] = std::make_unique<pruThread>("Base", base_freq);
-        threadMap["Servo"] = std::make_unique<pruThread>("Servo", servo_freq);
-        threadMap["On load"] = nullptr; // We dont use a thread for On Load functions
-}
-
 
 void Remora::loadModules() {
     ModuleFactory* factory = ModuleFactory::getInstance();
@@ -51,41 +40,64 @@ void Remora::loadModules() {
         if (modules[i].containsKey("Thread") && modules[i].containsKey("Type")) {
             const char* threadName = modules[i]["Thread"];
             const char* moduleType = modules[i]["Type"];
+            int threadIndex = 0;
+
             // Add frequency to module config to avoid freq in global namespace;
             // Create module using factory
             std::unique_ptr<Module> _mod = factory->createModule(threadName, moduleType, modules[i]);
-            if (_mod != nullptr) 
-                threadMap[threadName]->registerModule(std::move(_mod));
-        } 
+            if (strcmp(threadName, "Servo") == 0)
+                servoThread->registerModule(move(_mod));
+            else if (strcmp(threadName, "Base") == 0)
+                baseThread->registerModule(move(_mod));
+            else
+                onLoad.push_back(move(_mod));
+
+        }
     }
+
 }
 
 bool Remora::startThreads() {
-        for (const auto& thPair : threadMap) {
-            if (thPair.second != nullptr)
-                if (!thPair.second->startThread()) {
-                    return false;
-                }
-        }
 
+        servoThread->startThread();
+        baseThread->startThread();
+        for (const auto& module : onLoad) {
+            if (module) {
+                module->configure();
+            }
+        }
         threadsRunning = true;
         return true;
 }
 
+void Remora::run() {
 
-void Remora::start() {
     Watchdog& watchdog = Watchdog::get_instance();
     watchdog.start(TIMEOUT_WD);
-
     while (true) {
         watchdog.kick();
-        comms->handlePacket();
-        handleState();
+        comms->sendPacket();
+        if (comms->hasStopped()) {
+            transitionState(State::ST_IDLE);
+            return;
+        }
+    }
+}
+
+void Remora::start() {
+
+    if (comms->hasStarted()) {
+        run();
+    } else {
+        //comms->sendHeartBeat();
+        transitionState(State::ST_IDLE);
+        HAL_Delay(10);
     }
 }
 
 void Remora::transitionState(State _tr) {
     stateMachine.transitionTo(_tr);
+
 }
 
 void Remora::handleState() {
@@ -107,16 +119,12 @@ void Remora::handleState() {
                     break;
                 }
             }
+            transitionState(State::ST_RUNNING);
 
-            if (!PRUreset) {
-                transitionState(State::ST_IDLE);
-            }
             break;
 
         case State::ST_IDLE:
-            if (comms->getStatus()) {
-                transitionState(State::ST_RUNNING);
-            }
+            transitionState(State::ST_RUNNING);
 
             if (PRUreset) {
                 transitionState(State::ST_WDRESET);
@@ -127,6 +135,7 @@ void Remora::handleState() {
             if (PRUreset) {
                 transitionState(State::ST_WDRESET);
             }
+            start();
             break;
 
         case State::ST_STOP:
@@ -149,10 +158,18 @@ void Remora::handleState() {
 }
 
 void Remora::cleanup() {
-    for (const auto& thPair : threadMap) {
-        if (thPair.second != nullptr)
-            thPair.second->stopThread();
-    }
-
+    servoThread->stopThread();
+    baseThread->stopThread();
     this->threadsRunning = false;
+}
+
+bool Remora::isError() {
+
+    State currentState = stateMachine.getCurrentState();
+
+    if (currentState == State::ST_ERROR || currentState == State::ST_WDRESET) {
+        return true;
+    } else {
+        return false;
+    }
 }

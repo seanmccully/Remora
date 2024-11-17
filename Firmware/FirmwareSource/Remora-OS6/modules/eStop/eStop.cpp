@@ -1,7 +1,7 @@
 #include "eStop.h"
 
 /***********************************************************************
-                MODULE CONFIGURATION AND CREATION FROM JSON     
+                MODULE CONFIGURATION AND CREATION FROM JSON
 ************************************************************************/
 
 unique_ptr<Module> createEStop(const JsonObject& config) {
@@ -12,7 +12,7 @@ unique_ptr<Module> createEStop(const JsonObject& config) {
 
     //ptrTxHeader = &txData.header;
 
-    return make_unique<eStop>(txData.header, pin);
+    return make_unique<eStop>(&txData->header, pin);
 }
 
 
@@ -20,8 +20,8 @@ unique_ptr<Module> createEStop(const JsonObject& config) {
                 METHOD DEFINITIONS
 ************************************************************************/
 
-eStop::eStop(volatile int32_t &ptrTxHeader, const char* portAndPin) :
-    ptrTxHeader(&ptrTxHeader),
+eStop::eStop(volatile uint32_t *ptrTxHeader, const char* portAndPin) :
+    ptrTxHeader(ptrTxHeader),
 	portAndPin(portAndPin)
 {
 	this->pin = new Pin(this->portAndPin, 0);		// Input 0x0, Output 0x1

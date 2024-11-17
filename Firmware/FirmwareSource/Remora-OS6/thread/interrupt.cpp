@@ -1,5 +1,15 @@
 #include "interrupt.h"
-#include "stm32h7xx_hal.h"
+
+#if defined TARGET_STM32F4
+#include "stm32f4xx.h"
+#elif defined TARGET_STM32H7
+#include "stm32h7xx.h"
+#elif defined TARGET_STM32F1
+#include "stm32f1xx.h"
+#elif defined TARGET_STM32G0
+#include "stm32g0xx.h"
+#endif
+
 
 #include <cstdio>
 

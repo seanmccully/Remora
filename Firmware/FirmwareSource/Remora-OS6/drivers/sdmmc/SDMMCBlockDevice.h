@@ -8,8 +8,8 @@
 
 #include "pinmap.h"
 #include "board.h"
+#include "configuration.h"
 
-#include "stm32_hal_legacy.h"
 #if defined TARGET_STM32F4
 #include "stm32f4xx_hal.h"
 #include "stm32f4xx_hal_sd.h"  // Added for SD specific macros
@@ -32,6 +32,10 @@
 
 extern void HAL_SD_MspInit(SD_HandleTypeDef *hsd);
 extern void HAL_SD_MspDeInit(SD_HandleTypeDef *hsd);
+// Add these defines at the top of the file if not already present
+
+extern GPIO_TypeDef* Set_GPIO_Clock(uint32_t port_idx);
+
 
 class SDMMCBlockDevice : public BlockDevice {
 public:
@@ -55,7 +59,7 @@ public:
      * @param cd       Card detect pin (optional, default NC)
      */
     SDMMCBlockDevice(PinName detect_pin);
-    
+
     virtual int sync();
     virtual ~SDMMCBlockDevice();
 
@@ -175,24 +179,26 @@ public:
 
 
     const char *get_type() const;
-    
+
 private:
     // SDMMC HAL handle
-    SD_HandleTypeDef _sd_handle;
+    SD_HandleTypeDef *_sd_handle;
     HAL_SD_CardInfoTypeDef _card_info;
+    DigitalIn _cardDetect;
 	  uint8_t BSP_SD_GetCardState(void);
-    
+
     // Pin configuration
     PinMap pinMap_SD;
     PinName _cd;
 
-    
+
     bool _is_initialized;
     bd_size_t _block_size;
+    bd_size_t _sectors;
     bd_size_t _erase_size;
     bd_size_t _capacity_in_blocks;
 		uint32_t _init_ref_count;
-    
+
     uint64_t _freq;
     static uint32_t _calculate_clock_divider(uint64_t freq);
 		bool is_valid_read(bd_addr_t addr, bd_size_t size);
@@ -203,12 +209,12 @@ private:
      *  @return         0 on success or a negative error code on failure
      */
     int _initialise_card();
-    
+
     /** Configure SDMMC pins
      */
     //void _init_sdmmc_pins();
     void _deinit_sdmmc_pins(SD_HandleTypeDef *hsd);
-    
+
     /** Convert HAL errors to BlockDevice errors
      */
     PlatformMutex _mutex;

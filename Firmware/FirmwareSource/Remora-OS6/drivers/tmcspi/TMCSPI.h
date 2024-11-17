@@ -1,22 +1,62 @@
 #ifndef TMCSPI_H
 #define TMCSPI_H
 
+#include <atomic>
 using namespace std;
 
 #include "mbed.h"
 #include "configuration.h"
 #include "data.h"
 #include "pin.h"
+#include "gpioAPI.h"
 
-#if defined TARGET_STM32F4
-#include "stm32f4xx_hal.h"
-#elif defined TARGET_SKRV3
-#include "stm32h7xx_hal.h"
-#elif defined TARGET_STM32F1
-#include "stm32f1xx_hal.h"
-#elif defined TARGET_STM32G0
-#include "stm32f1xx_hal.h"
-#endif
+typedef union {
+    uint8_t sr;
+    struct {
+        uint8_t reset_flag    : 1,
+             driver_error     : 1,
+             sg2              : 1,
+             standstill       : 1,
+             velocity_reached : 1,
+             position_reached : 1,
+             status_stop_l    : 1,
+             status_stop_t    : 1;
+    };
+} TMC_SPI_status_t;
+typedef union  {
+      uint8_t value;
+      struct {
+          uint8_t
+          idx   :7,
+          write :1;
+      };
+} TMC_addr_t;
+
+typedef union {
+      uint32_t value;
+      uint8_t data[4];
+} TMC_payload_t;
+
+
+typedef struct TMC_spi_datagram {
+    TMC_addr_t addr;
+    TMC_payload_t payload;
+      TMC_spi_datagram(uint8_t a, uint32_t v) { addr.value = a; payload.value = v; }
+      TMC_spi_datagram() { addr.value = 0; payload.value = 0; }
+} TMC_spi_datagram_t;
+
+// Add these timing constants to TMCSPI.h header
+#define CS_SETUP_TIME_US    4    // Time between CS falling edge and first clock edge
+#define CS_HOLD_TIME_US     4    // Time between last clock edge and CS rising edge
+#define CS_MIN_HIGH_TIME_US 10   // Minimum time CS must stay high between transfers
+
+
+
+#define TMC5160_WRITE_MSK        0x80
+#define TMC5160_ADDRESS_MSK      0x7F
+#define TMC_PACKET_SIZE          (uint8_t)(40/8)
+#define SPI_MODE				 0x1UL
+#define SPI_RATE                 2000000
 
 #define ERR_OK 0
 #define ERR 1
@@ -31,49 +71,68 @@ using namespace std;
 #define SPI_POST_RESET_DELAY_US   50   // Delay after CS reset before next transfer
 #define SPI_MAX_RETRIES           3    // Maximum number of retry attempts
 
-class TMCSPI
+
+
+class TMCSPI : GPIOApi
 {
     private:
 
-        uint32_t lastTransferTime;    // Timestamp of last transfer
+		bool                swSPI;
+        atomic<bool>        transferComplete{false};
+        uint32_t            cr1; // Hold the CR1 Register;
+        uint32_t            spiIRQ;
+                                      //
         SPI_TypeDef*        spiType;
-        SPI_HandleTypeDef   spiHandle;
-        HAL_StatusTypeDef   status;
+        TMC_SPI_status_t    lastStatus;
+        SPI                 *spiH;
 
-        rxData_t            spiRxBuffer;
-        uint8_t             rejectCnt;
-        uint8_t             errorCode;
-        bool                SPIdataError;
+        Pin                 cs_pin;
+        Pin                 sck;
+        Pin                 mosi;
+        Pin                 miso;
 
-        Pin                  cs_pin;
-        GPIO_TypeDef*        cs_port;
+        [[nodiscard]] bool isCompleted() const { return transferComplete.load(std::memory_order_acquire);  }
+        inline void hasCompleted() {  transferComplete.store(true, std::memory_order_release); }
+        inline void notCompleted() {  transferComplete.store(false, std::memory_order_release); }
 
+        void swSPITransfer(TMC_spi_datagram*, bool);
+        void swSPITransferByte(uint8_t*,size_t,bool);
 
+        void spiTransfer(TMC_spi_datagram*, bool);
+        bool spi_flush_rx();
+        void spiClockConfig();
+        void spiPrepare();
+
+        static inline void writeb(void *addr, uint8_t val) {
+			barrier();
+             *(volatile uint8_t *)addr = val;
+        }
+        static inline uint8_t readb(void *addr) {
+			uint8_t val = *(volatile const uint8_t *)addr;
+			barrier();
+			return val;
+        }
 
     public:
 
-        TMCSPI(const char* cs_pin, const char* spiType_str);
-        void SetCSPin(void);
-        void delayMicroseconds(uint32_t us);
+        TMCSPI(const char*, const char*);
+        TMCSPI(const char*, const char*, const char*, const char*);
         uint8_t init(void);
-        void start(void);
-        void ResetCSPin(void);
-        bool getStatus(void);
-        void setStatus(bool);
-        bool getError(void);
-        void setError(bool error, uint8_t err);
-        uint8_t getErrorCode();
-        void spiWrite(uint8_t address, uint32_t value);
-        uint32_t spiRead(uint8_t address);
-        uint32_t tmc_read(uint8_t address);
-        uint8_t spiSendReceive(uint8_t data);
-        bool spiSendReceiveWithRetry(uint8_t data, uint8_t* receivedData = nullptr);
-        PinName stringToPinName(const char* gpio_str);
-        SPI_TypeDef* stringToSPIType(const const char* spiType_str);
-        GPIO_TypeDef* stringToGPIO(const char*  gpio_str);
-				void resetSPI();
-				HAL_SPI_StateTypeDef getSPIState();
+        uint8_t swInit(void);
 
+        bool isError(void);
+        uint8_t getErrorCode();
+        uint32_t tmc_read(uint8_t);
+        void spiWrite(TMC_spi_datagram*);
+        void spiRead(TMC_spi_datagram*);
+        void setupPins();
+        void spiCallback(int);
+
+        PinName stringToPinName(const char*);
+        SPI_TypeDef* stringToSPIType(const char*);
+        void resetSPI();
+
+        inline TMC_SPI_status_t getStatus() { return lastStatus; };
 };
 
 #endif

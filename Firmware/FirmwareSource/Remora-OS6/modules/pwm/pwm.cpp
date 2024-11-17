@@ -4,7 +4,7 @@
 #define PID_PWM_MAX 256		// 8 bit resolution
 
 /***********************************************************************
-                MODULE CONFIGURATION AND CREATION FROM JSON     
+                MODULE CONFIGURATION AND CREATION FROM JSON
 ************************************************************************/
 
 unique_ptr<Module> createPWM(const JsonObject& config) {
@@ -26,12 +26,12 @@ unique_ptr<Module> createPWM(const JsonObject& config) {
         if (!strcmp(variable,"True"))
         {
             // Variable frequency hardware PWM
-             return std::make_unique<HardwarePWM>(rxData.setPoint[period_sp], rxData.setPoint[sp] , period, pin);
+             return std::make_unique<HardwarePWM>(&rxData->setPoint[period_sp], &rxData->setPoint[sp] , period, pin);
         }
         else
         {
             // Fixed frequency hardware PWM
-            return std::make_unique<HardwarePWM>(rxData.setPoint[sp], period, pin);
+            return std::make_unique<HardwarePWM>(&rxData->setPoint[sp], period, pin);
         }
     }
     else
@@ -39,11 +39,11 @@ unique_ptr<Module> createPWM(const JsonObject& config) {
         // Software PWM
         if (pwmMax != 0) // use configuration file value for pwmMax - useful for 12V on 24V systems
         {
-            return std::make_unique<PWM>(rxData.setPoint[sp], pin, pwmMax);
+            return std::make_unique<PWM>(&rxData->setPoint[sp], pin, pwmMax);
         }
         else // use default value of pwmMax
         {
-            return std::make_unique<PWM>(rxData.setPoint[sp], pin);
+            return std::make_unique<PWM>(&rxData->setPoint[sp], pin);
         }
     }
     return pwm;
@@ -54,8 +54,8 @@ unique_ptr<Module> createPWM(const JsonObject& config) {
                 METHOD DEFINITIONS
 ************************************************************************/
 
-PWM::PWM(volatile float &ptrSP, const char* portAndPin) :
-	ptrSP(&ptrSP),
+PWM::PWM(volatile float *ptrSP, const char* portAndPin) :
+	ptrSP(ptrSP),
 	portAndPin(portAndPin)
 {
 
@@ -65,8 +65,8 @@ PWM::PWM(volatile float &ptrSP, const char* portAndPin) :
 }
 
 // use the following constructor when using 12v devices on a 24v system
-PWM::PWM(volatile float &ptrSP, const char* portAndPin, int pwmMax) :
-	ptrSP(&ptrSP),
+PWM::PWM(volatile float *ptrSP, const char* portAndPin, int pwmMax) :
+	ptrSP(ptrSP),
 	portAndPin(portAndPin),
 	pwmMax(pwmMax)
 {

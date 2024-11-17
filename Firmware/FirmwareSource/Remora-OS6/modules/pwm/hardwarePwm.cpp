@@ -2,8 +2,8 @@
 
 #define PWMPERIOD 200
 
-HardwarePWM::HardwarePWM(volatile float &ptrPwmPulseWidth, int pwmPeriod, const char* pin) :
-    ptrPwmPulseWidth(&ptrPwmPulseWidth),
+HardwarePWM::HardwarePWM(volatile float *ptrPwmPulseWidth, int pwmPeriod, const char* pin) :
+    ptrPwmPulseWidth(ptrPwmPulseWidth),
     pwmPeriod(pwmPeriod),
 	pin(pin)
 {
@@ -26,9 +26,9 @@ HardwarePWM::HardwarePWM(volatile float &ptrPwmPulseWidth, int pwmPeriod, const 
 }
 
 
-HardwarePWM::HardwarePWM(volatile float &ptrPwmPeriod, volatile float &ptrPwmPulseWidth, int pwmPeriod, const char* pin) :
-    ptrPwmPeriod(&ptrPwmPeriod),
-    ptrPwmPulseWidth(&ptrPwmPulseWidth),
+HardwarePWM::HardwarePWM(volatile float *ptrPwmPeriod, volatile float *ptrPwmPulseWidth, int pwmPeriod, const char* pin) :
+    ptrPwmPeriod(ptrPwmPeriod),
+    ptrPwmPulseWidth(ptrPwmPulseWidth),
     pwmPeriod(pwmPeriod),
 	pin(pin)
 {
@@ -71,7 +71,7 @@ void HardwarePWM::update()
         this->pwmPulseWidth = *(this->ptrPwmPulseWidth);
         this->pwmPulseWidth_us = (this->pwmPeriod * this->pwmPulseWidth) / 100.0;
         this->pwmPin->pulsewidth_us(this->pwmPulseWidth_us);
-    } 
+    }
 
     return;
 }

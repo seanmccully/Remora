@@ -89,5 +89,26 @@ extern const PinMap PinMap_MAX31865[];
 extern const PinMap PinMap_DEBUG[];
 extern const PinMap PinMap_BEEPER[];
 
+#define PINMAP_ANALOGIN PinMap_ADC
+#define PINMAP_ANALOGOUT PinMap_DAC
+#define PINMAP_I2C_SDA PinMap_I2C_SDA
+#define PINMAP_I2C_SCL PinMap_I2C_SCL
+#define PINMAP_UART_TX PinMap_UART_TX
+#define PINMAP_UART_RX PinMap_UART_RX
+#define PINMAP_UART_CTS PinMap_UART_CTS
+#define PINMAP_UART_RTS PinMap_UART_RTS
+#define PINMAP_SPI_SCLK PinMap_SPI_SCLK
+#define PINMAP_SPI_MOSI PinMap_SPI_MOSI
+#define PINMAP_SPI_MISO PinMap_SPI_MISO
+#define PINMAP_SPI_SSEL PinMap_SPI_SSEL
+#define PINMAP_PWM PinMap_PWM
+#define PINMAP_QSPI_DATA0 PinMap_QSPI
+#define PINMAP_QSPI_DATA1 PinMap_QSPI
+#define PINMAP_QSPI_DATA2 PinMap_QSPI
+#define PINMAP_QSPI_DATA3 PinMap_QSPI
+#define PINMAP_QSPI_SCLK PinMap_QSPI
+#define PINMAP_QSPI_SSEL PinMap_QSPI
+#define PINMAP_CAN_RD PinMap_CAN_RD
+#define PINMAP_CAN_TD PinMap_CAN_TD
 
 #endif

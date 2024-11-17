@@ -17,15 +17,16 @@ typedef enum {
 #define TMC5160_F_CLK               12000000UL              // factory tuned to 12MHz - see datasheet for calibration procedure if required
 #define TMC5160_MODE                0     // 0 = TMCMode_StealthChop, 1 = TMCMode_CoolStep, 3 = TMCMode_StallGuard
 #define TMC5160_MICROSTEPS          TMC5160_Microsteps_32
-#define TMC5160_R_SENSE             50                      // mOhm
-#define TMC5160_CURRENT             2500                     // mA RMS
+#define TMC5160_R_SENSE             75                      // mOhm
+#define TMC5160_CURRENT             500                     // mA RMS
 #define TMC5160_HOLD_CURRENT_PCT    50
 #define TMC5160_MULTISTEP           1
+#define TMC5160_TPOWERDOWN          128 // 0 ? ((2^8)-1) * 2^18 tCLK
 
 // CHOPCONF
 #define TMC5160_INTPOL              1   // Step interpolation: 0 = off, 1 = on
-#define TMC5160_TOFF                3   // Off time: 1 - 15, 0 = MOSFET disable (8)
-#define TMC5160_TBL                 2   // Blanking time: 0 = 16, 1 = 24, 2 = 36, 3 = 54 clocks
+#define TMC5160_TOFF                5   // Off time: 1 - 15, 0 = MOSFET disable (8)
+#define TMC5160_TBL                 1   // Blanking time: 0 = 16, 1 = 24, 2 = 36, 3 = 54 clocks
 #define TMC5160_CHM                 0   // Chopper mode: 0 = spreadCycle, 1 = constant off time
 // TMC5160_CHM 0 defaults
 #define TMC5160_HSTRT               5   // Hysteresis start: 1 - 8
@@ -37,6 +38,8 @@ typedef enum {
 #define TMC5160_TFD                13  // fd3 & hstrt: 0 - 15
 
 // IHOLD_IRUN
+#define TMC5160_IRUN                31
+#define TMC5160_IHOLD               ((TMC5160_IRUN * TMC5160_HOLD_CURRENT_PCT) / 100)
 #define TMC5160_IHOLDDELAY          6
 
 // TPWMTHRS
@@ -45,6 +48,7 @@ typedef enum {
 #define TMC5160_VHIGHCHM            0   //
 #define TMC5160_DISS2G              0   //
 #define TMC5160_DISS2VS             0   //
+#define TMC5160_DISFDCC             0   //
 #define TMC5160_FREEWHEEL           0   //
 #define TMC5160_SGT                 0   //
                                         //
@@ -84,70 +88,120 @@ typedef enum {
 #endif
 
 // Initialize with constructor instead of static initialization
-TMC5160_t* TMC5160Stepper::createTMC5160Defaults() {
-    TMC5160_t* defaults = new TMC5160_t();
+void TMC5160Stepper::setTMC5160Defaults() {
 
     // config
-    defaults->config.f_clk = TMC5160_F_CLK;
-    defaults->config.r_sense = TMC5160_R_SENSE;
-    defaults->config.current = TMC5160_CURRENT;
-    defaults->config.hold_current_pct = TMC5160_HOLD_CURRENT_PCT;
-    defaults->config.microsteps = TMC5160_MICROSTEPS;
+    driver->config.f_clk = TMC5160_F_CLK;
+    driver->config.r_sense = TMC5160_R_SENSE;
+    driver->config.current = TMC5160_CURRENT;
+    driver->config.hold_current_pct = TMC5160_HOLD_CURRENT_PCT;
+    driver->config.microsteps = TMC5160_MICROSTEPS;
 
     // gconf
-    defaults->gconf.en_pwm_mode = TMC5160_EN_PWM_MODE;
-    defaults->gconf.multistep_filt = TMC5160_MULTISTEP;
+    driver->gconf.en_pwm_mode = TMC5160_EN_PWM_MODE;
+    driver->gconf.multistep_filt = TMC5160_MULTISTEP;
 
-    // ihold_irun
-    defaults->ihold_irun.iholddelay = TMC5160_IHOLDDELAY;
 
     // tpwmthrs
-    defaults->tpwmthrs.tpwmthrs = TMC5160_TPWM_THRS;
+    driver->tpwmthrs.tpwmthrs = TMC5160_TPWM_THRS;
 
     // tcoolthrs
-    defaults->tcoolthrs.tcoolthrs = TMC5160_COOLSTEP_THRS;
+    driver->tcoolthrs.tcoolthrs = TMC5160_COOLSTEP_THRS;
 
     // chopconf
-    defaults->chopconf.intpol = TMC5160_INTPOL;
-    defaults->chopconf.toff = TMC5160_TOFF;
-    defaults->chopconf.chm = TMC5160_CHM;
-    defaults->chopconf.tbl = TMC5160_TBL;
-    defaults->chopconf.hend = TMC5160_HEND + 3;
-    defaults->chopconf.vhighfs = TMC5160_VHIGHFS;
-    defaults->chopconf.diss2g = TMC5160_DISS2G;
-    defaults->chopconf.diss2vs = TMC5160_DISS2VS;
+    driver->chopconf.intpol = TMC5160_INTPOL;
+    driver->chopconf.toff = TMC5160_TOFF;
+    driver->chopconf.chm = TMC5160_CHM;
+    driver->chopconf.tbl = TMC5160_TBL;
+
+    driver->chopconf.vhighfs = TMC5160_VHIGHFS;
+    driver->chopconf.diss2g = TMC5160_DISS2G;
+    driver->chopconf.diss2vs = TMC5160_DISS2VS;
+    driver->chopconf.disfdcc = 0;
 
     #if TMC5160_CHM == 0
-        defaults->chopconf.hstrt = TMC5160_HSTRT - 1;
-        defaults->chopconf.fd3 = TMC5160_FD3;
-        defaults->chopconf.tpfd = TMC5160_TPFD;
+        driver->chopconf.hstrt = TMC5160_HSTRT - 1;
+        driver->chopconf.hend = TMC5160_HEND;
+        driver->chopconf.fd3 = TMC5160_FD3;
+        driver->chopconf.tpfd = TMC5160_TPFD;
     #else
-        defaults->chopconf.fd3 = (TMC5160_TFD & 0x08) >> 3;
-        defaults->chopconf.hstrt = TMC5160_TFD & 0x07;
+        driver->chopconf.fd3 = (TMC5160_TFD & 0x08) >> 3;
+        driver->chopconf.hstrt = TMC5160_TFD & 0x07;
+        driver->chopconf.hend = TMC5160_HEND;
     #endif
 
     // coolconf
-    defaults->coolconf.semin = TMC5160_SEMIN;
-    defaults->coolconf.seup = TMC5160_SEUP;
-    defaults->coolconf.semax = TMC5160_SEMAX;
-    defaults->coolconf.sedn = TMC5160_SEDN;
-    defaults->coolconf.seimin = TMC5160_SEIMIN;
-    defaults->coolconf.sfilt = TMC5160_SFILT;
+    driver->coolconf.semin = TMC5160_SEMIN;
+    driver->coolconf.seup = TMC5160_SEUP;
+    driver->coolconf.semax = TMC5160_SEMAX;
+    driver->coolconf.sedn = TMC5160_SEDN;
+    driver->coolconf.seimin = TMC5160_SEIMIN;
+    driver->coolconf.sfilt = TMC5160_SFILT;
+    driver->coolconf.sgt = TMC5160_SGT;
+
+    // DRV_CONF
+    driver->drv_conf.drvstrength = 0;
+    driver->drv_conf.bbmclks = 4;
+    driver->drv_conf.bbmtime = 0;
+    driver->drv_conf.filt_isense = 0;
+
+    // ihold_irun
+    driver->ihold_irun.iholddelay = TMC5160_IHOLDDELAY;
+    driver->ihold_irun.irun = TMC5160_IRUN;
+    driver->ihold_irun.ihold = TMC5160_IHOLD;
+
 
     // pwmconf
-    defaults->pwmconf.pwm_autoscale = TMC5160_PWM_AUTOSCALE;
-    defaults->pwmconf.pwm_lim = TMC5160_PWM_LIM;
-    defaults->pwmconf.pwm_reg = TMC5160_PWM_REG;
-    defaults->pwmconf.pwm_autograd = TMC5160_PWM_AUTOGRAD;
-    defaults->pwmconf.pwm_freq = TMC5160_PWM_FREQ;
-    defaults->pwmconf.pwm_grad = TMC5160_PWM_GRAD;
-    defaults->pwmconf.pwm_ofs = TMC5160_PWM_OFS;
-    defaults->pwmconf.freewheel = TMC5160_FREEWHEEL;
+    driver->pwmconf.freewheel = TMC5160_FREEWHEEL;
+    if (!stealthchop) {
+        driver->pwmconf.pwm_autoscale = TMC5160_PWM_AUTOSCALE;
+        driver->pwmconf.pwm_lim = TMC5160_PWM_LIM;
+        driver->pwmconf.pwm_reg = TMC5160_PWM_REG;
+        driver->pwmconf.pwm_autograd = TMC5160_PWM_AUTOGRAD;
+        driver->pwmconf.pwm_freq = TMC5160_PWM_FREQ;
+        driver->pwmconf.pwm_grad = TMC5160_PWM_GRAD;
+        driver->pwmconf.pwm_ofs = TMC5160_PWM_OFS;
+    } else {
+        driver->pwmconf.pwm_lim = 12;
+        driver->pwmconf.pwm_reg = 8;
+        driver->pwmconf.pwm_autograd = true;
+        driver->pwmconf.pwm_autoscale = true;
+        driver->pwmconf.pwm_freq = 0b01;
+        driver->pwmconf.pwm_grad = 14;
+        driver->pwmconf.pwm_ofs = 36;
+    }
+    driver->tpowerdown.tpowerdown= TMC5160_TPOWERDOWN;
 
-    return defaults;
+}
+
+template<typename T>
+void TMC5160Stepper::writeRegister(const T& reg) {
+    TMC_spi_datagram datagram(reg->address, reg->sr);
+    datagram.addr.write = 1;
+    spi->spiWrite(&datagram);
+    (&datagram);
+}
+
+template<typename T>
+T  TMC5160Stepper::readRegister(const T& reg) {
+  TMC_spi_datagram datagram(reg->address, reg->sr);
+  datagram.addr.write = 0;
+  spi->spiRead(&datagram);
+  reg->sr = datagram.payload.value;
+  return reg;
 }
 
 
+TMC5160Stepper::TMC5160Stepper(const char* cs_pin, const char* miso, const char* mosi, const char* sck, float r_sense, uint16_t current, uint8_t microsteps, bool stealthchop) :
+   Rsense(r_sense)
+    {
+            this->driver = new TMC5160_t();
+            this->spi = new TMCSPI(miso, mosi, sck, cs_pin);
+            this->driver->config.current = current;
+            this->driver->config.r_sense = r_sense;
+            this->microsteps = microsteps;
+            this->stealthchop = stealthchop;
+    }
 
 // Protected
 // addr needed for TMC5160
@@ -156,19 +210,10 @@ TMC5160Stepper::TMC5160Stepper(const char* cs_pin, const char* spi_bus, float r_
     {
             this->driver = new TMC5160_t();
             this->spi = new TMCSPI(spi_bus, cs_pin);
-
-
             this->driver->config.current = current;
             this->driver->config.r_sense = r_sense;
-            if (MicrostepsIsValid(microsteps)) {
-                SetMicrosteps(microsteps);
-            } else {
-                SetMicrosteps(16);
-            }
-
-            defaults();
-            this->setStealthChop(stealthchop, TMC5160_PWM_FREQ, TMC5160_PWM_AUTOSCALE, TMC5160_PWM_AUTOGRAD);
-
+            this->microsteps = microsteps;
+            this->stealthchop = stealthchop;
     }
 
 
@@ -213,13 +258,14 @@ void TMC5160Stepper::_set_rms_current ()
     driver->ihold_irun.ihold = (driver->ihold_irun.irun * driver->config.hold_current_pct) / 100;
 }
 
-void TMC5160Stepper::defaults ()
+void TMC5160Stepper::begin ()
 {
-    this->driver = createTMC5160Defaults();
-
-    this->_set_rms_current();
-
-    Init();
+    if (Init()) {
+	    this->setStealthChop(stealthchop, TMC5160_PWM_FREQ, TMC5160_PWM_AUTOSCALE, TMC5160_PWM_AUTOGRAD);
+    	this->_set_rms_current();
+	} else {
+      	MBED_ERROR1(MBED_MAKE_ERROR(MBED_MODULE_APPLICATION, MBED_ERROR_CODE_INVALID_ARGUMENT),"TMC5160 Driver SPI issue!",0x12121);
+	}
 }
 
 uint8_t TMC5160Stepper::test_connection() {
@@ -241,8 +287,7 @@ void TMC5160Stepper::setCoolStep(uint8_t semin, uint8_t semax, uint8_t seup, uin
     driver->coolconf.sedn = sedn;
     driver->coolconf.seimin = seimin;
 
-    if (!WriteRegisterValidate((TMC_spi_datagram_t *)&driver->coolconf))
-    		MBED_ERROR1(MBED_MAKE_ERROR(MBED_MODULE_APPLICATION, MBED_ERROR_CODE_INVALID_ARGUMENT),"TMC5160 Driver Error",0x1243);
+    writeRegister(&driver->coolconf );
 }
 
 // Stall detection configuration
@@ -250,12 +295,8 @@ void TMC5160Stepper::setStallGuard(uint8_t sg_threshold, uint32_t sg_filter_time
     driver->coolconf.sgt = sg_threshold;
     driver->tcoolthrs.tcoolthrs = sg_filter_time;
 
-    if (!WriteRegisterValidate((TMC_spi_datagram_t *)&driver->coolconf))
-    		MBED_ERROR1(MBED_MAKE_ERROR(MBED_MODULE_APPLICATION, MBED_ERROR_CODE_INVALID_ARGUMENT),"TMC5160 Driver Error",0x1243);
-
-
-   if (!WriteRegisterValidate((TMC_spi_datagram_t *)&driver->tcoolthrs))
-    		MBED_ERROR1(MBED_MAKE_ERROR(MBED_MODULE_APPLICATION, MBED_ERROR_CODE_INVALID_ARGUMENT),"TMC5160 Driver Error",0x1243);
+    writeRegister(&driver->coolconf);
+    writeRegister(&driver->tcoolthrs);
 }
 
 bool TMC5160Stepper::isStallGuardActive() {
@@ -263,7 +304,7 @@ bool TMC5160Stepper::isStallGuardActive() {
 }
 
 uint32_t TMC5160Stepper::getStallGuardResult() {
-		return sg_result();
+    return sg_result();
 }
 
 // Velocity-dependent settings
@@ -272,15 +313,11 @@ void TMC5160Stepper::setThresholdSpeed(uint32_t tpwmthrs, uint32_t tcoolthrs, ui
     driver->tcoolthrs.tcoolthrs = tcoolthrs;
     driver->thigh.thigh = thigh;
 
-    if (!WriteRegisterValidate((TMC_spi_datagram_t *)&driver->tpwmthrs))
-    		MBED_ERROR1(MBED_MAKE_ERROR(MBED_MODULE_APPLICATION, MBED_ERROR_CODE_INVALID_ARGUMENT),"TMC5160 Driver Error [TPWMTHRS]",0x1243);
+    writeRegister(&driver->tpwmthrs);
 
-    if (!WriteRegisterValidate((TMC_spi_datagram_t *)&driver->tcoolthrs))
-    		MBED_ERROR1(MBED_MAKE_ERROR(MBED_MODULE_APPLICATION, MBED_ERROR_CODE_INVALID_ARGUMENT),"TMC5160 Driver Error [TCOOLTHRS]",0x1243);
+    writeRegister(&driver->tcoolthrs);
 
-    if (!WriteRegisterValidate((TMC_spi_datagram_t *)&driver->thigh))
-    		MBED_ERROR1(MBED_MAKE_ERROR(MBED_MODULE_APPLICATION, MBED_ERROR_CODE_INVALID_ARGUMENT),"TMC5160 Driver Error [THIGH]",0x1243);
-
+    writeRegister(&driver->thigh);
 }
 
 // Power stage settings
@@ -289,8 +326,7 @@ void TMC5160Stepper::setPowerStageParameters(uint8_t tbl, uint8_t toff, uint8_t 
     driver->chopconf.toff = toff;
     driver->chopconf.hstrt = hstrt;
     driver->chopconf.hend = hend;
-    if (!WriteRegisterValidate((TMC_spi_datagram_t *)&driver->chopconf))
-    		MBED_ERROR1(MBED_MAKE_ERROR(MBED_MODULE_APPLICATION, MBED_ERROR_CODE_INVALID_ARGUMENT),"TMC5160 Driver Error [CHOPCONF]",0x1243);
+    writeRegister(&driver->chopconf);
 }
 
 void TMC5160Stepper::setStealthChop(bool enable, uint8_t freq, uint8_t autoscale, uint8_t autograd) {
@@ -299,17 +335,14 @@ void TMC5160Stepper::setStealthChop(bool enable, uint8_t freq, uint8_t autoscale
     this->driver->pwmconf.pwm_autoscale = autoscale;
     this->driver->pwmconf.pwm_autograd = autograd;
 
-    if (!WriteRegisterValidate((TMC_spi_datagram_t *)&this->driver->gconf))
-    		MBED_ERROR1(MBED_MAKE_ERROR(MBED_MODULE_APPLICATION, MBED_ERROR_CODE_INVALID_ARGUMENT),"TMC5160 Driver Error [GCONF]",0x1243);
+    writeRegister(&this->driver->pwmconf);
 
-    if (!WriteRegisterValidate((TMC_spi_datagram_t *)&this->driver->pwmconf))
-    		MBED_ERROR1(MBED_MAKE_ERROR(MBED_MODULE_APPLICATION, MBED_ERROR_CODE_INVALID_ARGUMENT),"TMC5160 Driver Error [PWMCONF]",0x1243);
+    writeRegister(&this->driver->gconf);
 }
-
 
 // TSTEP measurement (for speed calculation)
 uint32_t TMC5160Stepper::getTStep() {
-    this->ReadRegister((TMC_spi_datagram_t *)&driver->tstep);
+    driver->tstep = *this->readRegister(&driver->tstep);
     return driver->tstep.tstep;
 }
 
@@ -322,29 +355,29 @@ float TMC5160Stepper::getCurrentSpeed() {
 
 bool TMC5160Stepper::Init()
 {
-    /*spi->spiWrite(TMC5160_n::GCONF_t::address, this->driver->gconf.sr);
-    spi->spiWrite(TMC5160_n::CHOPCONF_t::address, this->driver->chopconf.sr);
-    spi->spiWrite(TMC5160_n::COOLCONF_t::address, this->driver->coolconf.sr);
-    spi->spiWrite(TMC5160_n::PWMCONF_t::address, this->driver->pwmconf.sr);
-    spi->spiWrite(TMC5160_n::TPOWERDOWN_t::address, this->driver->tpowerdown.sr);
-    spi->spiWrite(TMC5160_n::TPWMTHRS_t::address, this->driver->tpwmthrs.sr);
-    */
-
     // Perform a status register read to clear reset flag
-    ReadRegister((TMC_spi_datagram_t *)&driver->gstat);
+    driver->gstat = *readRegister(&driver->gstat);
+    setTMC5160Defaults();
+    if (MicrostepsIsValid(microsteps)) {
+        SetMicrosteps(microsteps);
+    } else {
+        SetMicrosteps(16);
+    }
 
-    WriteRegister((TMC_spi_datagram_t *)&driver->gconf);
-    WriteRegister((TMC_spi_datagram_t *)&driver->chopconf);
-    WriteRegister((TMC_spi_datagram_t *)&driver->coolconf);
-    WriteRegister((TMC_spi_datagram_t *)&driver->pwmconf);
-    WriteRegister((TMC_spi_datagram_t *)&driver->tpowerdown);
-    WriteRegister((TMC_spi_datagram_t *)&driver->tpwmthrs);
+    writeRegister(&driver->gconf);
+    writeRegister(&driver->chopconf);
+    writeRegister(&driver->coolconf);
+    writeRegister(&driver->pwmconf);
+    writeRegister(&driver->ihold_irun);
+    writeRegister(&driver->tpowerdown);
+    writeRegister(&driver->tpwmthrs);
+    writeRegister(&driver->drv_conf);
 
     SetCurrent(driver->config.current, driver->config.hold_current_pct);
 
     // Read back chopconf to check if this->driver is online
     uint32_t chopconf = driver->chopconf.sr;
-    ReadRegister((TMC_spi_datagram_t *)&driver->chopconf);
+    driver->chopconf = *readRegister(&driver->chopconf);
 
     return this->driver->chopconf.sr == chopconf;
 
@@ -375,8 +408,8 @@ void TMC5160Stepper::SetCurrent (uint16_t mA, uint8_t hold_pct)
 
     this->_set_rms_current();
 
-    WriteRegister((TMC_spi_datagram_t *)&driver->global_scaler);
-    WriteRegister((TMC_spi_datagram_t *)&driver->ihold_irun);
+    writeRegister(&driver->global_scaler);
+    writeRegister(&driver->ihold_irun);
 }
 
 float TMC5160Stepper::GetTPWMTHRS (float steps_mm)
@@ -387,19 +420,19 @@ float TMC5160Stepper::GetTPWMTHRS (float steps_mm)
 void TMC5160Stepper::SetTPWMTHRS (float mm_sec, float steps_mm) // -> pwm threshold
 {
     this->driver->tpwmthrs.tpwmthrs = this->tmc_calc_tstep(mm_sec, steps_mm);
-    WriteRegister((TMC_spi_datagram_t *)&this->driver->tpwmthrs);
+    writeRegister(&this->driver->tpwmthrs);
 }
 
 void TMC5160Stepper::SetTHIGH (float mm_sec, float steps_mm) // -> pwm threshold
 {
     this->driver->thigh.thigh = this->tmc_calc_tstep(mm_sec, steps_mm);
-    WriteRegister((TMC_spi_datagram_t *)&this->driver->thigh);
+    writeRegister(&this->driver->thigh);
 }
 
 void TMC5160Stepper::SetTCOOLTHRS (float mm_sec, float steps_mm) // -> pwm threshold
 {
     this->driver->tcoolthrs.tcoolthrs = this->tmc_calc_tstep(mm_sec, steps_mm);
-    WriteRegister((TMC_spi_datagram_t *)&this->driver->tcoolthrs);
+    writeRegister(&this->driver->tcoolthrs);
 }
 
 uint32_t TMC5160Stepper::tmc_calc_tstep (float mm_sec, float steps_mm)
@@ -461,18 +494,12 @@ void TMC5160Stepper::SetMicrosteps (uint16_t msteps)
     this->driver->chopconf.mres = this->tmc_microsteps_to_mres(msteps);
     this->driver->config.microsteps = (tmc5160_microsteps_t)(1 << (8 - this->driver->chopconf.mres));
 // TODO: recalc and set hybrid threshold if enabled?
-    WriteRegister((TMC_spi_datagram_t *)&this->driver->chopconf);
+    writeRegister(&this->driver->chopconf);
 }
 
 uint32_t TMC5160Stepper::getMicrostepcounter() {
     uint8_t tx_data[5] = {0x6A, 0, 0, 0, 0}; // MSCNT register
     uint8_t rx_data[5];
-
-    this->spi->ResetCSPin();
-    for(int i = 0; i < 5; i++) {
-        rx_data[i] = this->spi->spiSendReceive(tx_data[i]);
-    }
-    this->spi->SetCSPin();
 
     return (rx_data[1] << 24) | (rx_data[2] << 16) |
            (rx_data[3] << 8) | rx_data[4];
@@ -480,7 +507,7 @@ uint32_t TMC5160Stepper::getMicrostepcounter() {
 
 void TMC5160Stepper::SetConstantOffTimeChopper (uint8_t constant_off_time,
                                                         uint8_t blank_time, uint8_t fast_decay_time,
-																												int8_t sine_wave_offset, bool use_current_comparator)
+                                                        int8_t sine_wave_offset, bool use_current_comparator)
 {
     //calculate the value acc to the clock cycles
     if (blank_time >= 54)
@@ -495,7 +522,7 @@ void TMC5160Stepper::SetConstantOffTimeChopper (uint8_t constant_off_time,
     if (fast_decay_time > 15)
         fast_decay_time = 15;
 
-    if(this->driver->chopconf.chm)
+    if (this->driver->chopconf.chm)
         this->driver->chopconf.fd3 = (fast_decay_time & 0x8) >> 3;
 
     this->driver->chopconf.tbl = blank_time;
@@ -503,32 +530,7 @@ void TMC5160Stepper::SetConstantOffTimeChopper (uint8_t constant_off_time,
     this->driver->chopconf.hstrt = fast_decay_time & 0x7;
     this->driver->chopconf.hend = (sine_wave_offset < -3 ? -3 : (sine_wave_offset > 12 ? 12 : sine_wave_offset)) + 3;
 
-    WriteRegister((TMC_spi_datagram_t *)&this->driver->chopconf);
-}
-
-
-
-bool TMC5160Stepper::WriteRegisterValidate(TMC_spi_datagram_t *reg) {
-    WriteRegister(reg);
-    // Read back and verify
-    TMC_payload_t readback = ReadRegister(reg);
-    return readback.value == reg->payload.value;
-}
-
-void TMC5160Stepper::WriteRegister (TMC_spi_datagram_t *reg)
-{
-    reg->addr.write = 1;
-    spi->spiWrite(reg->addr.value, reg->payload.value);
-}
-
-TMC_payload_t  TMC5160Stepper::ReadRegister (TMC_spi_datagram_t *reg)
-{
-    TMC_payload_t status;
-
-    reg->addr.write = 0;
-    status.value = spi->spiRead(reg->addr.value);
-
-    return status;
+    writeRegister(&this->driver->chopconf);
 }
 
 
@@ -541,13 +543,13 @@ bool TMC5160Stepper::vsense(void) {
 }
 
 bool TMC5160Stepper::stallguard() {
-	TMC5160_n::DRV_STATUS_t drv = getDRV_STATUS();
-	return drv.stallguard;
+  TMC5160_n::DRV_STATUS_t drv = getDRV_STATUS();
+  return drv.stallguard;
 }
 
 bool TMC5160Stepper::sg_result() {
-	TMC5160_n::DRV_STATUS_t drv = getDRV_STATUS();
-	return drv.sg_result;
+  TMC5160_n::DRV_STATUS_t drv = getDRV_STATUS();
+  return drv.sg_result;
 }
 
 uint32_t TMC5160Stepper::DRV_STATUS() {
@@ -558,9 +560,7 @@ uint32_t TMC5160Stepper::DRV_STATUS() {
 
 // In TMC5160Stepper.cpp
 TMC5160_n::DRV_STATUS_t TMC5160Stepper::getDRV_STATUS() {
-    TMC5160_n::DRV_STATUS_t reg;
-    reg.sr = spi->spiRead(TMC5160_n::DRV_STATUS_t::address);
-    return reg;
+    return *readRegister(&driver->drv_status);
 }
 
 
@@ -583,39 +583,33 @@ uint32_t TMC5160Stepper::IOIN() {
 }
 
 TMC5160_n::IOIN_t TMC5160Stepper::getIOIN() {
-    TMC5160_n::IOIN_t reg;
-    reg.sr = spi->spiRead(TMC5160_n::IOIN_t::address);
-    return reg;
+    return *readRegister(&driver->ioin);
 }
 
 TMC5160_n::CHOPCONF_t TMC5160Stepper::getCHOPCONF() {
-    return TMC5160_n::CHOPCONF_t(spi->spiRead(TMC5160_n::CHOPCONF_t::address));
+    return *readRegister(&driver->chopconf);
 }
 
 uint32_t TMC5160Stepper::CHOPCONF() {
-    TMC5160_n::CHOPCONF_t chop = getCHOPCONF();
-    return chop.sr;
+    return driver->chopconf.sr;
 }
 void TMC5160Stepper::CHOPCONF(uint32_t value) {
-    TMC5160_n::CHOPCONF_t data = value;
-    spi->spiWrite(TMC5160_n::CHOPCONF_t::address, data.sr);
+    driver->chopconf.sr = value;
+    writeRegister(&driver->chopconf);
 }
 
 void TMC5160Stepper::tbl(uint8_t value) {
-    TMC5160_n::CHOPCONF_t data = getCHOPCONF();
-    data.tbl = std::min(value, uint8_t(3));
-    CHOPCONF(data.sr);
+    driver->chopconf.tbl = std::min(value, uint8_t(3));
 }
 
 uint8_t TMC5160Stepper::tbl() {
-    return getCHOPCONF().tbl;
+    return driver->chopconf.tbl;
 }
 
 // Hysteresis start
 void TMC5160Stepper::hstrt(uint8_t value) {
-    TMC5160_n::CHOPCONF_t data = getCHOPCONF();
-    data.hstrt = std::min(value, uint8_t(7));
-    CHOPCONF(data.sr);
+    driver->chopconf.hstrt = std::min(value, uint8_t(7));
+    writeRegister(&driver->chopconf);
 }
 
 
@@ -625,9 +619,8 @@ uint8_t TMC5160Stepper::hstrt() {
 
 // Hysteresis end
 void TMC5160Stepper::hend(uint8_t value) {
-    TMC5160_n::CHOPCONF_t data = getCHOPCONF();
-    data.hend = std::min(std::max(value + 3, 0), 15);  // Convert from -3..12 to 0..15
-    CHOPCONF(data.sr);
+    driver->chopconf.hend = std::min(std::max(value + 3, 0), 15);  // Convert from -3..12 to 0..15
+    writeRegister(&driver->chopconf);
 }
 
 uint8_t TMC5160Stepper::hend() {
@@ -637,8 +630,8 @@ uint8_t TMC5160Stepper::hend() {
 // TOFF setting
 void TMC5160Stepper::toff(uint8_t value) {
     TMC5160_n::CHOPCONF_t data = getCHOPCONF();
-    data.toff = std::min(value, uint8_t(15));
-    CHOPCONF(data.sr);
+    driver->chopconf.toff = std::min(value, uint8_t(15));
+    writeRegister(&driver->chopconf);
 }
 
 uint8_t TMC5160Stepper::toff() {
@@ -646,12 +639,12 @@ uint8_t TMC5160Stepper::toff() {
 }
 
 TMC5160_n::COOLCONF_t TMC5160Stepper::getCOOLCONF() {
-    return TMC5160_n::COOLCONF_t(spi->spiRead(TMC5160_n::COOLCONF_t::address));
+    return *readRegister(&driver->coolconf);
 }
 
 
 
 TMC5160Stepper::~TMC5160Stepper() {
-		cleanup();
+    cleanup();
 }
 

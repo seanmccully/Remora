@@ -1,7 +1,7 @@
 #include "mcp4451.h"
 
 /***********************************************************************
-                MODULE CONFIGURATION AND CREATION FROM JSON     
+                MODULE CONFIGURATION AND CREATION FROM JSON
 ************************************************************************/
 unique_ptr<Module> createMCP4451(const JsonObject& config) {
     const char* sda = config["I2C SDA pin"];

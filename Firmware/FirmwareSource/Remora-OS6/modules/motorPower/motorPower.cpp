@@ -26,7 +26,7 @@ MotorPower::MotorPower(const char* portAndPin) :
 
 void MotorPower::update()
 {
-	this->pin->set(true);			// turn motor power ON
+	this->pin->setPin(true);			// turn motor power ON
 }
 
 void MotorPower::slowUpdate()

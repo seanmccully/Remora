@@ -1,7 +1,7 @@
 #include "digitalPin.h"
 
 /***********************************************************************
-                MODULE CONFIGURATION AND CREATION FROM JSON     
+                MODULE CONFIGURATION AND CREATION FROM JSON
 ************************************************************************/
 
 unique_ptr<Module> createDigitalPin(const JsonObject& config) {
@@ -10,32 +10,11 @@ unique_ptr<Module> createDigitalPin(const JsonObject& config) {
     const char* pin = config["Pin"];
     const char* mode = config["Mode"];
     const char* invert = config["Invert"];
-    const char* modifier = config["Modifier"];
     int dataBit = config["Data Bit"];
 
     int mod;
     bool inv;
 
-    if (!strcmp(modifier,"Open Drain"))
-    {
-        mod = OPENDRAIN;
-    }
-    else if (!strcmp(modifier,"Pull Up"))
-    {
-        mod = PULLUP;
-    }
-    else if (!strcmp(modifier,"Pull Down"))
-    {
-        mod = PULLDOWN;
-    }
-    else if (!strcmp(modifier,"Pull None"))
-    {
-        mod = PULLNONE;
-    }
-    else
-    {
-        mod = NONE;
-    }
 
     if (!strcmp(invert,"True"))
     {
@@ -46,11 +25,11 @@ unique_ptr<Module> createDigitalPin(const JsonObject& config) {
 
     if (!strcmp(mode,"Output"))
     {
-        return std::make_unique<DigitalPin>(ptrRxData->outputs, 1, pin, dataBit, inv, mod);
+        return std::make_unique<DigitalPin>(rxData->outputs, 1, pin, dataBit, inv);
     }
     else if (!strcmp(mode,"Input"))
     {
-        std::make_unique<DigitalPin>(ptrTxData->inputs, 0, pin, dataBit, inv, mod);
+        std::make_unique<DigitalPin>(txData->inputs, 0, pin, dataBit, inv);
     }
 
     return nullptr;
@@ -61,16 +40,16 @@ unique_ptr<Module> createDigitalPin(const JsonObject& config) {
                 METHOD DEFINITIONS
 ************************************************************************/
 
-DigitalPin::DigitalPin(volatile uint16_t &ptrData, int mode, const char* portAndPin, int bitNumber, bool invert, int modifier) :
+DigitalPin::DigitalPin(volatile uint16_t &ptrData, int mode, const char* portAndPin, int bitNumber, bool invert) :
 	ptrData(&ptrData),
 	mode(mode),
 	portAndPin(portAndPin),
 	bitNumber(bitNumber),
-    invert(invert),
-	modifier(modifier)
+    invert(invert)
 {
-	this->pin = new Pin(this->portAndPin, this->mode, this->modifier);		// Input 0x0, Output 0x1
-	this->mask = 1 << this->bitNumber;
+	this->pin = new Pin(portAndPin, mode);		// Input 0x0, Output 0x1
+	this->mask = this->pin->getGPIONumber();
+    this->pin->setPinState();
 }
 
 
@@ -80,7 +59,7 @@ void DigitalPin::update()
 
 	if (this->mode == 0)									// the pin is configured as an input
 	{
-		pinState = this->pin->get();
+		pinState = this->pin->readPin();
 		if(this->invert)
 		{
 			pinState = !pinState;

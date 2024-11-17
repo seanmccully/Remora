@@ -371,6 +371,8 @@ class TMC5160Stepper  {
         static const uint16_t SPI_TIMEOUT = 1000; // ms
         static const uint8_t MAX_SPI_RETRIES = 3;
         uint16_t bytesWritten = 0;
+        uint8_t microsteps = 0;
+        bool stealthchop = false;
         float Rsense = 0.05;
         bool CRCerror = false;
         float holdMultiplier = 0.5;
@@ -379,6 +381,8 @@ class TMC5160Stepper  {
 
         //TMC5160Stepper(string SWRXpin, string SWTXpin, float RS, uint8_t addr);
         TMC5160Stepper(const char* cs_pin, const char* spi_bus,
+                       float r_sense, uint16_t current, uint8_t microsteps, bool stealthchop);
+        TMC5160Stepper(const char* cs_pin, const char* miso, const char *mosi, const char *sck,
                        float r_sense, uint16_t current, uint8_t microsteps, bool stealthchop);
 
 
@@ -393,7 +397,7 @@ class TMC5160Stepper  {
         void _set_rms_current();
         void defaults ();
 
-				bool Init();
+		bool Init();
         uint_fast16_t cs2rms (uint8_t CS);
         uint16_t GetCurrent();
         void SetCurrent (uint16_t mA, uint8_t hold_pct);
@@ -406,9 +410,9 @@ class TMC5160Stepper  {
         bool isStallGuardActive();
         uint32_t getStallGuardResult();
         void setThresholdSpeed(uint32_t tpwmthrs, uint32_t tcoolthrs, uint32_t thigh);
-				TMC5160_n::TMC5160_t* createTMC5160Defaults();
+		void setTMC5160Defaults();
 
-		    bool isEnabled() { return !getIOIN().drv_enn; }
+	    bool isEnabled() { return !getIOIN().drv_enn; }
         bool MicrostepsIsValid (uint16_t usteps);
         bool tmc_microsteps_validate (uint16_t microsteps);
         void SetMicrosteps (uint16_t msteps);
@@ -431,11 +435,7 @@ class TMC5160Stepper  {
         void tbl(uint8_t);
         uint8_t tbl();
 
-    		uint8_t version() { return getIOIN().version; }
-				TMC5160_n::IOIN_t getIOIN();
-				TMC5160_n::DRV_STATUS_t getDRV_STATUS();
-        TMC5160_n::CHOPCONF_t getCHOPCONF();
-        TMC5160_n::COOLCONF_t getCOOLCONF();
+   		uint8_t version() { return getIOIN().version; }
         void CHOPCONF(uint32_t input);
         void IOIN(uint32_t input);
         uint32_t IOIN();
@@ -443,26 +443,29 @@ class TMC5160Stepper  {
         bool enn();
         bool dir();
         bool step();
-				bool sg_result();
-				bool stallguard();
+        bool sg_result();
+        bool stallguard();
         uint8_t toff();
-			  void toff(uint8_t);
+        void toff(uint8_t);
 
-				~TMC5160Stepper();
+	    TMC5160_n::IOIN_t getIOIN();
+		TMC5160_n::DRV_STATUS_t getDRV_STATUS();
+        TMC5160_n::CHOPCONF_t getCHOPCONF();
+        TMC5160_n::COOLCONF_t getCOOLCONF();
+
+		~TMC5160Stepper();
     protected:
 
-				void setPowerStageParameters(uint8_t tbl, uint8_t toff, uint8_t hstrt, uint8_t hend);
+        template<typename T> T readRegister(const T& reg);
+        template<typename T> void writeRegister(const T& reg);
+		void setPowerStageParameters(uint8_t tbl, uint8_t toff, uint8_t hstrt, uint8_t hend);
         uint8_t tmc_microsteps_to_mres(uint16_t microsteps);
         uint16_t tmc_mres_to_microsteps(uint8_t mres);
         void setStealthChop(bool enable, uint8_t freq, uint8_t autoscale, uint8_t autograd);
-        void WriteRegister (TMC5160_n::TMC_spi_datagram_t *reg);
-        bool WriteRegisterValidate(TMC5160_n::TMC_spi_datagram_t *reg);
-        TMC5160_n::TMC_payload_t ReadRegister (TMC5160_n::TMC_spi_datagram_t *reg);
+
         uint32_t tmc_calc_tstep (float mm_sec, float steps_mm);
         float tmc_calc_tstep_inv (uint32_t tstep, float steps_mm);
         //TMC5160_n::TMC_spi_datagram_t * GetRegPtr (TMC5160_n::tmc5160_regaddr_t reg);
-        void tmcSPIWrite (TMC5160_n::TMC_spi_datagram_t *datagram);
-        uint32_t tmcSPIRead (TMC5160_n::TMC_spi_datagram_t *datagram);
         int available();
 
         uint8_t calcCRC(uint8_t datagram[], uint8_t len);

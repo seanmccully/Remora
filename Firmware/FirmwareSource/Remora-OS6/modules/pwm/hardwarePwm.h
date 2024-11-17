@@ -29,8 +29,8 @@ class HardwarePWM : public Module
 
 	public:
 
-		HardwarePWM(volatile float&, int, const char*);			        
-    HardwarePWM(volatile float&, volatile float&, int, const char*);	
+		HardwarePWM(volatile float*, int, const char*);
+    HardwarePWM(volatile float*, volatile float*, int, const char*);
 
 		virtual void update(void);          // Module default interface
 		virtual void slowUpdate(void);      // Module default interface
